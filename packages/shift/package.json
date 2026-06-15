@@ -1,0 +1,26 @@
+{
+  "manifest_format": 1,
+  "name": "shift",
+  "version": "0.1.0",
+  "summary": "Logical/arithmetic shifters, rotators, and a barrel network.",
+  "description": "Pure combinational mux networks built on mux::BusMux2: variable logical left/right shift, arithmetic (sign-extending) right shift, a bidirectional barrel shifter, a variable rotator, a funnel shifter across a 2N window, and a pure-wiring bit reversal. Each shift is a log-depth barrel of stages selecting between no-shift and shift-by-2^k.",
+  "license": "GPL-3.0-or-later",
+  "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "keywords": ["shift", "shifter", "barrel", "rotate", "funnel", "arithmetic-shift", "bit-reverse"],
+  "shdl": ">=1.0.0",
+  "module": "shift.shdl",
+  "dependencies": {
+    "mux": "^0.1.0"
+  },
+  "tests": "tests/shift.tests.json",
+  "exports": [
+    {"name": "ShiftLeft", "summary": "Logical left shift by a variable amount.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "Sh", "width": 3}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "ShiftRight", "summary": "Logical right shift by a variable amount.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "Sh", "width": 3}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "ArithShiftR", "summary": "Arithmetic (sign-extending) right shift.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "Sh", "width": 3}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "BarrelShifter", "summary": "Log-depth barrel shifter, either direction.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "Sh", "width": 3}, {"name": "Dir", "width": 1}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "BarrelRotator", "summary": "Variable rotate left (no bits lost).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "Sh", "width": 3}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "FunnelShifter", "summary": "Funnel shift across a 2N-bit window.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "Hi", "width": "N"}, {"name": "Lo", "width": "N"}, {"name": "Sh", "width": 3}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "BitReverse", "summary": "Reverse bit order (pure wiring).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": "N"}]}
+  ]
+}

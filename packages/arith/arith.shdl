@@ -1,0 +1,529 @@
+"""
+arith — adders, subtractors, comparators, multiply/divide, and an ALU.
+
+The heart of the educational story: adders whose carry you can watch ripple,
+and faster adders that visibly settle sooner. Everything is composed from the
+six SHDL primitives and a few gates from the `gates` package — there is no
+behavioral arithmetic. Bit 1 is the LSB (shdl.md §6); buses are 1-indexed.
+
+Two's-complement convention: A - B = A + (~B) + 1. Subtraction and negation
+use this throughout. These circuits are combinational but DEEP (an 8-bit
+array multiplier or restoring divider is dozens of gate levels); the test
+vectors set a generous `steps` budget so every output settles. This module
+has no `top` marker — flatten any component explicitly:
+
+    shdl-flatten arith.shdl --top RippleAdder -I ../gates
+"""
+
+use gates::{AndN, OrN, BitNot, Majority3};
+
+# =========================================================================
+# Adder cells
+# =========================================================================
+
+component HalfAdder(A, B) -> (Sum, Cout) {
+    x1: XOR;  a1: AND;
+    connect {
+        A -> x1.A;  B -> x1.B;  x1.O -> Sum;
+        A -> a1.A;  B -> a1.B;  a1.O -> Cout;
+    }
+}
+
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    ha1: HalfAdder;     # A + B
+    ha2: HalfAdder;     # (A + B) + Cin
+    o1:  OR;            # carry out if either stage carried
+    connect {
+        A        -> ha1.A;    B   -> ha1.B;
+        ha1.Sum  -> ha2.A;    Cin -> ha2.B;
+        ha2.Sum  -> Sum;
+        ha1.Cout -> o1.A;     ha2.Cout -> o1.B;
+        o1.O -> Cout;
+    }
+}
+
+# =========================================================================
+# RippleAdder — carry-ripple chain, depth ~ 2N
+# =========================================================================
+
+component RippleAdder<N = 8>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ fa{i}: FullAdder; }
+    connect {
+        >i[N]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            when {i == 1} { Cin          -> fa{i}.Cin; }
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }
+            fa{i}.Sum -> Sum[{i}];
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+
+# =========================================================================
+# CarryLookahead — generate/propagate carries with a shallow OR-of-ANDs so
+# the carry into every bit settles in a constant few levels instead of
+# rippling. c[1] = Cin ; c[i+1] = g[i] + p[i]·c[i], expanded flat:
+#   c[i] = g[i-1] + p[i-1]g[i-2] + ... + p[i-1]..p[1]·Cin.
+# Each carry term is one AndN; the carry is the OrN of its (i-1) terms.
+# =========================================================================
+
+component CarryLookahead<N = 8>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ g{i}: AND;  p{i}: XOR;  sx{i}: XOR; }
+    # carry INTO bit i = c{i}.O, for i = 2..N+1 ; c1 = Cin (no gate).
+    #   c{i} = p{i-1}..p{1}·Cin  +  SUM over k=1..i-1 of ( p{i-1}..p{k+1}·g{k} )
+    # The k=i-1 generate term is just g{i-1} (no propagates), wired directly
+    # into the carry OR so we never need an AndN<1>. All other AndN have >= 2
+    # inputs and the inner propagate generators below are never empty.
+    >i[2:N+1]{
+        tc{i}: AndN<i>;          # Cin term: (i-1) propagates + Cin  (i inputs)
+        c{i}:  OrN<i>;           # OR the i terms (tc + (i-2) tg + direct g{i-1})
+    }
+    # generate-with-propagate terms exist only for i >= 3 (i=2 has none), so
+    # the k-range [1:i-2] is never empty here.
+    >i[3:N+1]{ >k[1:i-2]{ tg{i}_{k}: AndN<i-k>; } }
+    connect {
+        >i[N]{
+            A[{i}] -> g{i}.A;  B[{i}] -> g{i}.B;     # g = A·B
+            A[{i}] -> p{i}.A;  B[{i}] -> p{i}.B;     # p = A^B (XOR propagate)
+        }
+        >i[2:N+1]{
+            # Cin term: propagates p{i-1} down to p{1}, then Cin.
+            >j[1:i-1]{ p{i-j}.O -> tc{i}.A[{j}]; }
+            Cin     -> tc{i}.A[{i}];
+            tc{i}.O -> c{i}.A[1];                    # OR input 1 = Cin term
+            # the k=i-1 term is the bare generate g{i-1} -> last OR input
+            g{i-1}.O -> c{i}.A[{i}];
+        }
+        # generate terms k = 1..i-2 (each has >= 1 propagate factor), i >= 3
+        >i[3:N+1]{
+            >k[1:i-2]{
+                >j[1:i-1-k]{ p{i-j}.O -> tg{i}_{k}.A[{j}]; }   # p{i-1}..p{k+1}
+                g{k}.O      -> tg{i}_{k}.A[{i-k}];              # base generate
+                tg{i}_{k}.O -> c{i}.A[{k+1}];                   # OR inputs 2..i-1
+            }
+        }
+        # sum[i] = p[i] XOR carry_into_i ; carry into bit 1 = Cin
+        >i[N]{
+            p{i}.O -> sx{i}.A;
+            when {i == 1} { Cin    -> sx{i}.B; }
+            else          { c{i}.O -> sx{i}.B; }
+            sx{i}.O -> Sum[{i}];
+        }
+        c{N+1}.O -> Cout;
+    }
+}
+
+# =========================================================================
+# CarrySelect — split into halves; the high half is computed twice (carry-in
+# 0 and 1) in parallel, then the correct copy is selected by the low half's
+# carry-out. Default N = 16, split N/2 + (N - N/2). Built from RippleAdder
+# blocks plus 1-bit 2:1 mux cells (AND/OR/NOT from primitives).
+# =========================================================================
+
+component CarrySelect<N = 16>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    ZERO = 0;  ONE = 1;
+    lo:  RippleAdder<N/2>;          # low half, real carry-in
+    hi0: RippleAdder<N - N/2>;      # high half assuming carry-in 0
+    hi1: RippleAdder<N - N/2>;      # high half assuming carry-in 1
+    >i[1:N - N/2]{ mA{i}: AND;  mB{i}: AND;  mO{i}: OR; }
+    selInv: NOT;
+    cA: AND;  cB: AND;  cO: OR;     # mux for the final Cout
+    connect {
+        A[:N/2] -> lo.A;   B[:N/2] -> lo.B;   Cin -> lo.Cin;
+        lo.Sum -> Sum[:N/2];
+
+        A[N/2+1:N] -> hi0.A;  B[N/2+1:N] -> hi0.B;  ZERO -> hi0.Cin;
+        A[N/2+1:N] -> hi1.A;  B[N/2+1:N] -> hi1.B;  ONE  -> hi1.Cin;
+
+        lo.Cout -> selInv.A;
+        >i[1:N - N/2]{
+            hi0.Sum[{i}] -> mA{i}.A;  selInv.O -> mA{i}.B;   # hi0 when no low-carry
+            hi1.Sum[{i}] -> mB{i}.A;  lo.Cout  -> mB{i}.B;   # hi1 when low-carry
+            mA{i}.O -> mO{i}.A;  mB{i}.O -> mO{i}.B;
+            mO{i}.O -> Sum[{N/2 + i}];
+        }
+        hi0.Cout -> cA.A;  selInv.O -> cA.B;
+        hi1.Cout -> cB.A;  lo.Cout  -> cB.B;
+        cA.O -> cO.A;  cB.O -> cO.B;
+        cO.O -> Cout;
+    }
+}
+
+# =========================================================================
+# CarrySave — a 3:2 compressor row. Per bit: S = A^B^C (saved sum),
+# Cy = majority(A,B,C). No horizontal carry propagation — that is the point.
+# =========================================================================
+
+component CarrySave<N = 8>(A[N], B[N], C[N]) -> (S[N], Cy[N]) {
+    >i[N]{ x1{i}: XOR;  x2{i}: XOR;  maj{i}: Majority3; }
+    connect {
+        >i[N]{
+            A[{i}] -> x1{i}.A;  B[{i}] -> x1{i}.B;
+            x1{i}.O -> x2{i}.A; C[{i}] -> x2{i}.B;
+            x2{i}.O -> S[{i}];
+            A[{i}] -> maj{i}.A;  B[{i}] -> maj{i}.B;  C[{i}] -> maj{i}.C;
+            maj{i}.O -> Cy[{i}];
+        }
+    }
+}
+
+# =========================================================================
+# Subtractor — borrow subtractor via two's complement: Diff = A + ~B + ~Bin.
+# Bout = ~Cout (no-borrow when the adder carried out).
+# =========================================================================
+
+component Subtractor<N = 8>(A[N], B[N], Bin) -> (Diff[N], Bout) {
+    bInv: BitNot<N>;        # ~B
+    binInv: NOT;            # ~Bin -> adder carry-in
+    add: RippleAdder<N>;
+    coutInv: NOT;           # Bout = ~Cout
+    connect {
+        B   -> bInv.A;
+        Bin -> binInv.A;
+        A        -> add.A;
+        bInv.O   -> add.B;
+        binInv.O -> add.Cin;
+        add.Sum  -> Diff;
+        add.Cout -> coutInv.A;
+        coutInv.O -> Bout;
+    }
+}
+
+# =========================================================================
+# AddSub — add when Sub=0, two's-complement subtract when Sub=1.
+# B is conditionally inverted (XOR Sub) and Sub feeds carry-in.
+# =========================================================================
+
+component AddSub<N = 8>(A[N], B[N], Sub) -> (R[N], Cout) {
+    >i[N]{ bx{i}: XOR; }
+    add: RippleAdder<N>;
+    connect {
+        >i[N]{ B[{i}] -> bx{i}.A;  Sub -> bx{i}.B;  bx{i}.O -> add.B[{i}]; }
+        A   -> add.A;
+        Sub -> add.Cin;
+        add.Sum  -> R;
+        add.Cout -> Cout;
+    }
+}
+
+# =========================================================================
+# Incrementer — A + 1.
+# =========================================================================
+
+component Incrementer<N = 8>(A[N]) -> (O[N], Cout) {
+    ZEROS[N] = 0;  ONE = 1;
+    add: RippleAdder<N>;
+    connect {
+        A     -> add.A;
+        ZEROS -> add.B;
+        ONE   -> add.Cin;
+        add.Sum  -> O;
+        add.Cout -> Cout;
+    }
+}
+
+# =========================================================================
+# Decrementer — A - 1 = A + (all ones) + 0. Bout = ~Cout (underflow at A=0).
+# =========================================================================
+
+component Decrementer<N = 8>(A[N]) -> (O[N], Bout) {
+    ZEROS[N] = 0;
+    ZERO = 0;
+    ones: BitNot<N>;        # ~0 = all ones, width N
+    add: RippleAdder<N>;
+    coutInv: NOT;
+    connect {
+        ZEROS  -> ones.A;
+        A      -> add.A;
+        ones.O -> add.B;    # A + (all ones) == A - 1
+        ZERO   -> add.Cin;
+        add.Sum  -> O;
+        add.Cout -> coutInv.A;
+        coutInv.O -> Bout;
+    }
+}
+
+# =========================================================================
+# Negate — two's-complement negation: O = ~A + 1.
+# =========================================================================
+
+component Negate<N = 8>(A[N]) -> (O[N]) {
+    ZEROS[N] = 0;  ONE = 1;
+    inv: BitNot<N>;
+    add: RippleAdder<N>;
+    connect {
+        A     -> inv.A;
+        inv.O -> add.A;
+        ZEROS -> add.B;
+        ONE   -> add.Cin;
+        add.Sum -> O;
+    }
+}
+
+# =========================================================================
+# EqComparator — XNOR each bit pair (XOR then NOT), AND-reduce. Eq = (A==B).
+# =========================================================================
+
+component EqComparator<N = 8>(A[N], B[N]) -> (Eq) {
+    >i[N]{ x{i}: XOR;  n{i}: NOT; }
+    red: AndN<N>;
+    connect {
+        >i[N]{
+            A[{i}] -> x{i}.A;  B[{i}] -> x{i}.B;
+            x{i}.O -> n{i}.A;
+            n{i}.O -> red.A[{i}];
+        }
+        red.O -> Eq;
+    }
+}
+
+# =========================================================================
+# MagComparator — unsigned magnitude compare via A + ~B + 1:
+#   Cout = 1  <=>  A >= B
+#   Eq   = all bits equal
+#   Gt   = Cout AND not Eq ;  Lt = not (Gt or Eq).
+# =========================================================================
+
+component MagComparator<N = 8>(A[N], B[N]) -> (Lt, Eq, Gt) {
+    ONE = 1;
+    bInv: BitNot<N>;
+    sub:  RippleAdder<N>;
+    >i[N]{ ex{i}: XOR;  en{i}: NOT; }
+    eqRed: AndN<N>;
+    eqInv: NOT;
+    gtA: AND;
+    ltO: OR;  ltN: NOT;
+    connect {
+        B -> bInv.A;
+        A      -> sub.A;
+        bInv.O -> sub.B;
+        ONE    -> sub.Cin;
+
+        >i[N]{
+            A[{i}] -> ex{i}.A;  B[{i}] -> ex{i}.B;
+            ex{i}.O -> en{i}.A;
+            en{i}.O -> eqRed.A[{i}];
+        }
+        eqRed.O -> Eq;
+        eqRed.O -> eqInv.A;
+
+        sub.Cout -> gtA.A;  eqInv.O -> gtA.B;
+        gtA.O -> Gt;
+
+        gtA.O   -> ltO.A;  eqRed.O -> ltO.B;
+        ltO.O -> ltN.A;
+        ltN.O -> Lt;
+    }
+}
+
+# =========================================================================
+# ArrayMultiplier — unsigned N×N carry-propagate array. P width = 2N.
+# pp{i}_{j} = A[j]·B[i]. Row 1 lands directly; each subsequent row r is
+# added (RippleAdder<N>) to the high N bits of the running accumulator,
+# aligned one bit higher, emitting one product bit per row.
+# =========================================================================
+
+component ArrayMultiplier<N = 8>(A[N], B[N]) -> (P[2*N]) {
+    ZERO = 0;
+    >i[N]{ >j[N]{ pp{i}_{j}: AND; } }
+    >r[2:N]{ add{r}: RippleAdder<N>; }
+    connect {
+        >i[N]{ >j[N]{ A[{j}] -> pp{i}_{j}.A;  B[{i}] -> pp{i}_{j}.B; } }
+
+        # product bit 1 = row-1 LSB partial product
+        pp1_1.O -> P[1];
+
+        # Stage 2: accumulate row 2 onto row-1's high bits (bits 2..N), 0 on top.
+        >j[1:N-1]{ pp1_{j+1}.O -> add2.A[{j}]; }
+        ZERO -> add2.A[{N}];
+        >j[N]{ pp2_{j}.O -> add2.B[{j}]; }
+        ZERO -> add2.Cin;
+        add2.Sum[1] -> P[2];
+
+        # Stages 3..N: add row r to high bits of previous adder's sum.
+        >r[3:N]{
+            >j[1:N-1]{ add{r-1}.Sum[{j+1}] -> add{r}.A[{j}]; }
+            add{r-1}.Cout -> add{r}.A[{N}];
+            >j[N]{ pp{r}_{j}.O -> add{r}.B[{j}]; }
+            ZERO -> add{r}.Cin;
+            add{r}.Sum[1] -> P[{r}];
+        }
+
+        # top N bits of product: add{N}.Sum[2..N] then its Cout
+        >j[2:N]{ add{N}.Sum[{j}] -> P[{N + j - 1}]; }
+        add{N}.Cout -> P[{2*N}];
+    }
+}
+
+# =========================================================================
+# Divider — restoring unsigned division. A / B -> Q (quotient), R (remainder).
+# N stages of shift / trial-subtract / restore, fully unrolled. Stage k
+# (k = 1..N) processes dividend bit (N-k+1): shift the running remainder up,
+# bring that bit in at the bottom, trial-subtract B; if it fits (no borrow)
+# keep the difference and set quotient bit (N-k+1), else restore.
+# B = 0 is undefined (avoid in vectors).
+# =========================================================================
+
+component Divider<N = 8>(A[N], B[N]) -> (Q[N], R[N]) {
+    ONE = 1;  ZERO = 0;
+    bInv: BitNot<N>;                     # ~B, reused every stage
+    >k[N]{ sub{k}: RippleAdder<N>; }     # trial: shifted_rem + ~B + 1
+    >k[N]{ >j[N]{ mA{k}_{j}: AND;  mB{k}_{j}: AND;  mO{k}_{j}: OR; } }
+    >k[N]{ selInv{k}: NOT; }
+    connect {
+        B -> bInv.A;
+
+        >k[N]{
+            # shifted remainder feeding stage k:
+            #   bit 1 = next dividend bit A[N-k+1]
+            #   bit j = previous remainder bit (j-1), for j = 2..N
+            A[{N - k + 1}] -> sub{k}.A[1];
+            >j[2:N]{
+                when {k == 1} { ZERO            -> sub{k}.A[{j}]; }
+                else          { mO{k-1}_{j-1}.O -> sub{k}.A[{j}]; }
+            }
+            bInv.O -> sub{k}.B;
+            ONE    -> sub{k}.Cin;
+
+            # quotient bit (N-k+1) = subtraction fit (carry-out = no borrow)
+            sub{k}.Cout -> Q[{N - k + 1}];
+
+            # remainder after stage k: fit -> trial sum, else -> shifted rem.
+            # The shifted-rem "restore" input is taken from the SAME sources
+            # that build sub.A (instance inputs cannot be read back).
+            sub{k}.Cout -> selInv{k}.A;
+            >j[N]{
+                sub{k}.Sum[{j}] -> mA{k}_{j}.A;  sub{k}.Cout -> mA{k}_{j}.B;
+                selInv{k}.O -> mB{k}_{j}.B;
+                mA{k}_{j}.O -> mO{k}_{j}.A;  mB{k}_{j}.O -> mO{k}_{j}.B;
+            }
+            # restore source, bit 1 = the shifted-in dividend bit
+            A[{N - k + 1}] -> mB{k}_1.A;
+            # restore source, bits 2..N = previous remainder bit (j-1)
+            >j[2:N]{
+                when {k == 1} { ZERO            -> mB{k}_{j}.A; }
+                else          { mO{k-1}_{j-1}.O -> mB{k}_{j}.A; }
+            }
+        }
+        >j[N]{ mO{N}_{j}.O -> R[{j}]; }
+    }
+}
+
+# =========================================================================
+# ALU — arithmetic-logic unit. 3-bit Op selects one of 8 operations.
+#
+#   Op = 000  ->  Y = A AND B
+#   Op = 001  ->  Y = A OR  B
+#   Op = 010  ->  Y = A XOR B
+#   Op = 011  ->  Y = NOT A          (one's complement of A)
+#   Op = 100  ->  Y = A + B          (Cout = carry-out)
+#   Op = 101  ->  Y = A - B          (two's complement; Cout = no-borrow)
+#   Op = 110  ->  Y = A + 1          (increment)
+#   Op = 111  ->  Y = A - 1          (decrement)
+#
+# Flags:  Cout = carry/borrow-bar out of the shared adder lane (meaningful
+#                for the arithmetic ops 100..111).
+#         Zero = 1 when Y == 0.
+#
+# A single RippleAdder serves all four arithmetic ops; its B operand and
+# carry-in are derived from Op[1],Op[2] (s0,s1):
+#   add 100: B'=B   Cin=0 ;  sub 101: B'=~B  Cin=1
+#   inc 110: B'=0   Cin=1 ;  dec 111: B'=1s  Cin=0
+#   => B'[i] = s1 ? (s0 ? 1 : 0) : (s0 ? ~B[i] : B[i]) ;  Cin = s0 XOR s1
+# The 8:1 result select is a one-hot decode of Op gating AND/OR per bit.
+# =========================================================================
+
+component ALU<N = 8>(A[N], B[N], Op[3]) -> (Y[N], Cout, Zero) {
+    # logic lanes
+    >i[N]{ lAnd{i}: AND;  lOr{i}: OR;  lXor{i}: XOR;  lNot{i}: NOT; }
+
+    # arithmetic operand build
+    s0i: NOT;  s1i: NOT;          # ~Op[1], ~Op[2]
+    >i[N]{ binv{i}: NOT; }        # ~B[i]
+    # group1 = (s0 ? ~B : B)  ;  group2 = (s0 ? 1 : 0) = s0
+    >i[N]{ g1A{i}: AND;  g1B{i}: AND;  g1O{i}: OR; }
+    >i[N]{ g2A{i}: AND;  g2B{i}: AND;  g2O{i}: OR; }
+    cinX: XOR;
+    add: RippleAdder<N>;
+
+    # one-hot decode of Op (Op[1]=LSB) -> dec1..dec8 (dec{d} for value d-1)
+    o0i: NOT;  o1i: NOT;  o2i: NOT;
+    >d[8]{ dec{d}: AndN<3>; }
+    # 8:1 mux per bit
+    >i[N]{ >d[8]{ mAnd{i}_{d}: AND; } }
+    >i[N]{ mOr{i}: OrN<8>; }
+
+    # Zero flag
+    zRed: OrN<N>;  zInv: NOT;
+
+    connect {
+        # logic lanes
+        >i[N]{
+            A[{i}] -> lAnd{i}.A;  B[{i}] -> lAnd{i}.B;
+            A[{i}] -> lOr{i}.A;   B[{i}] -> lOr{i}.B;
+            A[{i}] -> lXor{i}.A;  B[{i}] -> lXor{i}.B;
+            A[{i}] -> lNot{i}.A;
+        }
+
+        # arithmetic operand
+        Op[1] -> s0i.A;  Op[2] -> s1i.A;
+        >i[N]{ B[{i}] -> binv{i}.A; }
+        >i[N]{
+            # group1 = s0 ? ~B : B
+            B[{i}]    -> g1A{i}.A;  s0i.O -> g1A{i}.B;    # B  AND ~s0
+            binv{i}.O -> g1B{i}.A;  Op[1] -> g1B{i}.B;    # ~B AND  s0
+            g1A{i}.O -> g1O{i}.A;  g1B{i}.O -> g1O{i}.B;
+            # B'[i] = s1 ? group2(=s0) : group1
+            g1O{i}.O -> g2A{i}.A;  s1i.O -> g2A{i}.B;     # group1 AND ~s1
+            Op[1]    -> g2B{i}.A;  Op[2] -> g2B{i}.B;     # s0     AND  s1
+            g2A{i}.O -> g2O{i}.A;  g2B{i}.O -> g2O{i}.B;
+            g2O{i}.O -> add.B[{i}];
+        }
+        A -> add.A;
+        Op[1] -> cinX.A;  Op[2] -> cinX.B;  cinX.O -> add.Cin;
+
+        # one-hot Op decode. dec{d} fires when Op == (d-1). Op[1]=LSB.
+        # Each line names the bit-1/bit-2/bit-3 literals of (d-1) explicitly:
+        #   o0i/o1i/o2i = inverted op bits (matched when that bit is 0),
+        #   Op[k]       = op bit itself     (matched when that bit is 1).
+        Op[1] -> o0i.A;  Op[2] -> o1i.A;  Op[3] -> o2i.A;
+        # dec1 = 000
+        o0i.O -> dec1.A[1];  o1i.O -> dec1.A[2];  o2i.O -> dec1.A[3];
+        # dec2 = 001
+        Op[1] -> dec2.A[1];  o1i.O -> dec2.A[2];  o2i.O -> dec2.A[3];
+        # dec3 = 010
+        o0i.O -> dec3.A[1];  Op[2] -> dec3.A[2];  o2i.O -> dec3.A[3];
+        # dec4 = 011
+        Op[1] -> dec4.A[1];  Op[2] -> dec4.A[2];  o2i.O -> dec4.A[3];
+        # dec5 = 100
+        o0i.O -> dec5.A[1];  o1i.O -> dec5.A[2];  Op[3] -> dec5.A[3];
+        # dec6 = 101
+        Op[1] -> dec6.A[1];  o1i.O -> dec6.A[2];  Op[3] -> dec6.A[3];
+        # dec7 = 110
+        o0i.O -> dec7.A[1];  Op[2] -> dec7.A[2];  Op[3] -> dec7.A[3];
+        # dec8 = 111
+        Op[1] -> dec8.A[1];  Op[2] -> dec8.A[2];  Op[3] -> dec8.A[3];
+
+        # 8:1 result mux per bit
+        >i[N]{
+            lAnd{i}.O    -> mAnd{i}_1.A;  dec1.O -> mAnd{i}_1.B;
+            lOr{i}.O     -> mAnd{i}_2.A;  dec2.O -> mAnd{i}_2.B;
+            lXor{i}.O    -> mAnd{i}_3.A;  dec3.O -> mAnd{i}_3.B;
+            lNot{i}.O    -> mAnd{i}_4.A;  dec4.O -> mAnd{i}_4.B;
+            add.Sum[{i}] -> mAnd{i}_5.A;  dec5.O -> mAnd{i}_5.B;
+            add.Sum[{i}] -> mAnd{i}_6.A;  dec6.O -> mAnd{i}_6.B;
+            add.Sum[{i}] -> mAnd{i}_7.A;  dec7.O -> mAnd{i}_7.B;
+            add.Sum[{i}] -> mAnd{i}_8.A;  dec8.O -> mAnd{i}_8.B;
+            >d[8]{ mAnd{i}_{d}.O -> mOr{i}.A[{d}]; }
+            mOr{i}.O -> Y[{i}];
+        }
+
+        add.Cout -> Cout;
+
+        # Zero = NOR of result bits
+        >i[N]{ mOr{i}.O -> zRed.A[{i}]; }
+        zRed.O -> zInv.A;
+        zInv.O -> Zero;
+    }
+}

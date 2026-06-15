@@ -1,0 +1,126 @@
+{
+  "test_format": 1,
+  "package": "code",
+  "cases": [
+    { "component": "BinToGray", "steps": 64, "vectors": [
+      {"in": {"B": 0},   "out": {"G": 0}},
+      {"in": {"B": 1},   "out": {"G": 1}},
+      {"in": {"B": 2},   "out": {"G": 3}},
+      {"in": {"B": 3},   "out": {"G": 2}},
+      {"in": {"B": 4},   "out": {"G": 6}},
+      {"in": {"B": 7},   "out": {"G": 4}},
+      {"in": {"B": 255}, "out": {"G": 128}},
+      {"in": {"B": 170}, "out": {"G": 255}},
+      {"in": {"B": 128}, "out": {"G": 192}}
+    ]},
+    { "component": "GrayToBin", "steps": 64, "vectors": [
+      {"in": {"G": 0},   "out": {"B": 0}},
+      {"in": {"G": 1},   "out": {"B": 1}},
+      {"in": {"G": 3},   "out": {"B": 2}},
+      {"in": {"G": 2},   "out": {"B": 3}},
+      {"in": {"G": 6},   "out": {"B": 4}},
+      {"in": {"G": 4},   "out": {"B": 7}},
+      {"in": {"G": 128}, "out": {"B": 255}},
+      {"in": {"G": 255}, "out": {"B": 170}},
+      {"in": {"G": 192}, "out": {"B": 128}}
+    ]},
+    { "component": "BinToBcd", "steps": 64, "vectors": [
+      {"in": {"B": 0},   "out": {"Bcd": 0}},
+      {"in": {"B": 5},   "out": {"Bcd": 5}},
+      {"in": {"B": 9},   "out": {"Bcd": 9}},
+      {"in": {"B": 10},  "out": {"Bcd": 16}},
+      {"in": {"B": 42},  "out": {"Bcd": 66}},
+      {"in": {"B": 99},  "out": {"Bcd": 153}},
+      {"in": {"B": 100}, "out": {"Bcd": 256}},
+      {"in": {"B": 156}, "out": {"Bcd": 342}},
+      {"in": {"B": 199}, "out": {"Bcd": 409}},
+      {"in": {"B": 255}, "out": {"Bcd": 597}}
+    ]},
+    { "component": "BcdToBin", "steps": 64, "vectors": [
+      {"in": {"Bcd": 0},     "out": {"B": 0}},
+      {"in": {"Bcd": 5},     "out": {"B": 5}},
+      {"in": {"Bcd": 9},     "out": {"B": 9}},
+      {"in": {"Bcd": 16},    "out": {"B": 10}},
+      {"in": {"Bcd": 66},    "out": {"B": 42}},
+      {"in": {"Bcd": 86},    "out": {"B": 56}},
+      {"in": {"Bcd": 153},   "out": {"B": 99}},
+      {"in": {"Bcd": 144},   "out": {"B": 90}}
+    ]},
+    { "component": "BcdAdder", "steps": 64, "vectors": [
+      {"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"S": 0, "Cout": 0}},
+      {"in": {"A": 3, "B": 4, "Cin": 0}, "out": {"S": 7, "Cout": 0}},
+      {"in": {"A": 5, "B": 5, "Cin": 0}, "out": {"S": 0, "Cout": 1}},
+      {"in": {"A": 7, "B": 8, "Cin": 0}, "out": {"S": 5, "Cout": 1}},
+      {"in": {"A": 9, "B": 9, "Cin": 1}, "out": {"S": 9, "Cout": 1}},
+      {"in": {"A": 4, "B": 5, "Cin": 1}, "out": {"S": 0, "Cout": 1}},
+      {"in": {"A": 6, "B": 3, "Cin": 0}, "out": {"S": 9, "Cout": 0}},
+      {"in": {"A": 8, "B": 1, "Cin": 1}, "out": {"S": 0, "Cout": 1}},
+      {"in": {"A": 2, "B": 2, "Cin": 0}, "out": {"S": 4, "Cout": 0}}
+    ]},
+    { "component": "SevenSegDecoder", "steps": 64, "vectors": [
+      {"in": {"Hex": 0},  "out": {"Seg": 63}},
+      {"in": {"Hex": 1},  "out": {"Seg": 6}},
+      {"in": {"Hex": 2},  "out": {"Seg": 91}},
+      {"in": {"Hex": 3},  "out": {"Seg": 79}},
+      {"in": {"Hex": 4},  "out": {"Seg": 102}},
+      {"in": {"Hex": 5},  "out": {"Seg": 109}},
+      {"in": {"Hex": 6},  "out": {"Seg": 125}},
+      {"in": {"Hex": 7},  "out": {"Seg": 7}},
+      {"in": {"Hex": 8},  "out": {"Seg": 127}},
+      {"in": {"Hex": 9},  "out": {"Seg": 111}},
+      {"in": {"Hex": 10}, "out": {"Seg": 119}},
+      {"in": {"Hex": 11}, "out": {"Seg": 124}},
+      {"in": {"Hex": 12}, "out": {"Seg": 57}},
+      {"in": {"Hex": 13}, "out": {"Seg": 94}},
+      {"in": {"Hex": 14}, "out": {"Seg": 121}},
+      {"in": {"Hex": 15}, "out": {"Seg": 113}}
+    ]},
+    { "component": "ParityGen", "steps": 64, "vectors": [
+      {"in": {"D": 0},   "out": {"P": 0}},
+      {"in": {"D": 1},   "out": {"P": 1}},
+      {"in": {"D": 3},   "out": {"P": 0}},
+      {"in": {"D": 7},   "out": {"P": 1}},
+      {"in": {"D": 255}, "out": {"P": 0}},
+      {"in": {"D": 170}, "out": {"P": 0}},
+      {"in": {"D": 171}, "out": {"P": 1}},
+      {"in": {"D": 128}, "out": {"P": 1}}
+    ]},
+    { "component": "ParityCheck", "steps": 64, "vectors": [
+      {"in": {"D": 0,   "P": 0}, "out": {"Err": 0}},
+      {"in": {"D": 0,   "P": 1}, "out": {"Err": 1}},
+      {"in": {"D": 1,   "P": 1}, "out": {"Err": 0}},
+      {"in": {"D": 1,   "P": 0}, "out": {"Err": 1}},
+      {"in": {"D": 7,   "P": 1}, "out": {"Err": 0}},
+      {"in": {"D": 255, "P": 0}, "out": {"Err": 0}},
+      {"in": {"D": 255, "P": 1}, "out": {"Err": 1}},
+      {"in": {"D": 170, "P": 0}, "out": {"Err": 0}},
+      {"in": {"D": 171, "P": 1}, "out": {"Err": 0}}
+    ]},
+    { "component": "HammingEncode", "steps": 64, "vectors": [
+      {"in": {"D": 0},  "out": {"Code": 0}},
+      {"in": {"D": 1},  "out": {"Code": 7}},
+      {"in": {"D": 2},  "out": {"Code": 25}},
+      {"in": {"D": 3},  "out": {"Code": 30}},
+      {"in": {"D": 4},  "out": {"Code": 42}},
+      {"in": {"D": 7},  "out": {"Code": 52}},
+      {"in": {"D": 8},  "out": {"Code": 75}},
+      {"in": {"D": 15}, "out": {"Code": 127}}
+    ]},
+    { "component": "HammingDecode", "steps": 64, "vectors": [
+      {"in": {"Code": 127}, "out": {"D": 15, "Err": 0}},
+      {"in": {"Code": 126}, "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 125}, "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 123}, "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 119}, "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 111}, "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 95},  "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 63},  "out": {"D": 15, "Err": 1}},
+      {"in": {"Code": 0},   "out": {"D": 0,  "Err": 0}},
+      {"in": {"Code": 1},   "out": {"D": 0,  "Err": 1}},
+      {"in": {"Code": 7},   "out": {"D": 1,  "Err": 0}},
+      {"in": {"Code": 6},   "out": {"D": 1,  "Err": 1}},
+      {"in": {"Code": 75},  "out": {"D": 8,  "Err": 0}},
+      {"in": {"Code": 73},  "out": {"D": 8,  "Err": 1}}
+    ]}
+  ]
+}

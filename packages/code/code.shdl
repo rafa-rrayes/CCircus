@@ -1,0 +1,394 @@
+"""
+code — encoding, decoding & error correction.
+
+Combinational XOR / logic networks: Gray code, binary<->BCD, a one-digit
+decimal adder, a hex 7-segment decoder, even-parity generate/check, and a
+Hamming(7,4) single-error-correcting encoder/decoder. Bit 1 is the LSB
+(shdl.md §6). Built straight on the six primitives plus gates::{XorN}.
+
+Encoding choices are documented in README.md:
+  - BCD: each decimal digit is 4 bits, digit 0 = least-significant (ones),
+    bus little-endian (Bcd[1:4] = ones, Bcd[5:8] = tens, Bcd[9:12] = hundreds).
+  - 7-seg: Seg[1]=a, Seg[2]=b, ... Seg[7]=g, active-high, common-cathode.
+  - Hamming(7,4): parity positions 1,2,4; data positions 3,5,6,7. Code[j] is
+    the bit at position j; D[1..4] map to positions 3,5,6,7 respectively.
+"""
+
+use gates::{XorN, OrN};
+
+# =========================================================================
+#  Internal helpers (raw-gate adder cells; not exported)
+# =========================================================================
+
+# 1-bit full adder built from raw primitives (no gates:: composite needed).
+component FA_(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  x2: XOR;          # sum = A ^ B ^ Cin
+    a1: AND;  a2: AND;  o1: OR; # carry = AB + Cin(A^B)
+    connect {
+        A -> x1.A;   B -> x1.B;
+        x1.O -> x2.A;  Cin -> x2.B;  x2.O -> Sum;
+
+        A -> a1.A;   B -> a1.B;          # A AND B
+        x1.O -> a2.A;  Cin -> a2.B;      # (A^B) AND Cin
+        a1.O -> o1.A;  a2.O -> o1.B;  o1.O -> Cout;
+    }
+}
+
+# N-bit ripple-carry adder (internal). Cout exposed.
+component RippleN_<N = 8>(A[N], B[N], Cin) -> (S[N], Cout) {
+    >i[N]{ fa{i}: FA_; }
+    connect {
+        >i[N]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            when {i == 1} { Cin          -> fa{i}.Cin; }
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }
+            fa{i}.Sum -> S[{i}];
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+
+# =========================================================================
+#  Gray code
+# =========================================================================
+
+# Gray = B XOR (B >> 1).  G[N]=B[N];  G[i] = B[i] XOR B[i+1].
+component BinToGray<N = 8>(B[N]) -> (G[N]) {
+    >i[1:N-1]{ x{i}: XOR; }
+    connect {
+        >i[1:N-1]{
+            B[{i}]   -> x{i}.A;
+            B[{i+1}] -> x{i}.B;
+            x{i}.O   -> G[{i}];
+        }
+        B[N] -> G[N];
+    }
+}
+
+# Prefix-XOR.  B[N]=G[N];  B[i] = B[i+1] XOR G[i]  (descending chain).
+component GrayToBin<N = 8>(G[N]) -> (B[N]) {
+    >i[1:N-1]{ x{i}: XOR; }
+    connect {
+        G[N] -> B[N];
+        # walk from the MSB-1 down to bit 1; B[i] depends on B[i+1].
+        >i[1:N-1]{
+            when {i == N-1} { G[N]        -> x{i}.A; }   # B[i+1] = B[N] = G[N]
+            else            { x{i+1}.O    -> x{i}.A; }   # B[i+1] = x{i+1}.O
+            G[{i}] -> x{i}.B;
+            x{i}.O -> B[{i}];
+        }
+    }
+}
+
+# =========================================================================
+#  Binary <-> BCD
+# =========================================================================
+
+# "add 3 if >= 5" nibble fix used by the double-dabble shift network.
+# Input N4 (a 4-bit nibble, bit1=LSB), output O4. If value >= 5, add 3.
+# >=5 condition for a 4-bit value seen *before* a shift: bit3 OR (bit2 AND bit1)...
+# but here the nibble holds 0..9 so we test >=5 as: b4 OR (b3 AND (b2 OR b1)).
+component Add3IfGE5_(N4[4]) -> (O4[4]) {
+    # ge5 = b4 OR (b3 AND (b2 OR b1))
+    o_lo: OR;   a_mid: AND;  o_ge: OR;
+    # adder to add 0011 (=3) conditionally: we add (ge5, ge5, 0... ) -> actually add 3 = b'0011.
+    # Build a dedicated 4-bit adder of N4 + (00 ge5 ge5) with no carry out kept.
+    >i[4]{ fa{i}: FA_; }
+    g0: __GND__;
+    connect {
+        # ge5 detect
+        N4[1] -> o_lo.A;  N4[2] -> o_lo.B;        # b1 OR b2
+        o_lo.O -> a_mid.A;  N4[3] -> a_mid.B;     # b3 AND (b1 OR b2)
+        a_mid.O -> o_ge.A;  N4[4] -> o_ge.B;      # OR b4   => ge5
+
+        # add N4 + (b4 b3 b2 b1 of constant 3 = 0,0,1,1) but gated by ge5:
+        # addend bit1 = ge5, bit2 = ge5, bit3 = 0, bit4 = 0
+        N4[1] -> fa1.A;  o_ge.O -> fa1.B;  g0.O -> fa1.Cin;
+        N4[2] -> fa2.A;  o_ge.O -> fa2.B;  fa1.Cout -> fa2.Cin;
+        N4[3] -> fa3.A;  g0.O   -> fa3.B;  fa2.Cout -> fa3.Cin;
+        N4[4] -> fa4.A;  g0.O   -> fa4.B;  fa3.Cout -> fa4.Cin;
+        fa1.Sum -> O4[1];  fa2.Sum -> O4[2];  fa3.Sum -> O4[3];  fa4.Sum -> O4[4];
+    }
+}
+
+# Binary -> BCD via combinational double-dabble (shift-and-add-3).
+# N=8 input, output 12 bits = 3 BCD digits (ones, tens, hundreds).
+# The datapath is the 8-stage DDChain8_ below.
+component BinToBcd<N = 8>(B[N]) -> (Bcd[12]) {
+    dd: DDChain8_;
+    connect {
+        B -> dd.B;
+        dd.Bcd -> Bcd;
+    }
+}
+
+# One double-dabble stage: given the current 3 nibbles (ones,tens,hund) and
+# an incoming bit, apply +3-if->=5 to ones and tens, then shift left and
+# insert the new bit. Outputs the new 3 nibbles.
+component DDStage_(OnesIn[4], TensIn[4], HundIn[4], Bit) -> (OnesOut[4], TensOut[4], HundOut[4]) {
+    fo: Add3IfGE5_;   ft: Add3IfGE5_;
+    connect {
+        OnesIn -> fo.N4;
+        TensIn -> ft.N4;
+        # After fix, shift the whole 12-bit {hund,tens,ones} left by 1,
+        # inserting Bit at the LSB.
+        #   newOnes = { fo.O4[1:3], Bit }
+        #   newTens = { ft.O4[1:3], fo.O4[4] }
+        #   newHund = { HundIn[1:3], ft.O4[4] }
+        { fo.O4[1:3], Bit }        -> OnesOut;
+        { ft.O4[1:3], fo.O4[4] }   -> TensOut;
+        { HundIn[1:3], ft.O4[4] }  -> HundOut;
+    }
+}
+
+# 8-bit double-dabble chain: 8 stages, MSB first.
+component DDChain8_(B[8]) -> (Bcd[12]) {
+    >s[8]{ st{s}: DDStage_; }
+    # zero seeds for the first stage's nibbles
+    >j[4]{ z_o{j}: __GND__;  z_t{j}: __GND__;  z_h{j}: __GND__; }
+    connect {
+        # Stage 1 starts from all-zero nibbles, shifts in B[8] (the MSB).
+        >j[4]{
+            z_o{j}.O -> st1.OnesIn[{j}];
+            z_t{j}.O -> st1.TensIn[{j}];
+            z_h{j}.O -> st1.HundIn[{j}];
+        }
+        B[8] -> st1.Bit;
+
+        # Stages 2..8 chain previous outputs and shift in B[8-(s-1)] = B[9-s].
+        >s[2:8]{
+            st{s-1}.OnesOut -> st{s}.OnesIn;
+            st{s-1}.TensOut -> st{s}.TensIn;
+            st{s-1}.HundOut -> st{s}.HundIn;
+            B[{9-s}] -> st{s}.Bit;
+        }
+
+        # Final nibbles -> Bcd: ones=[1:4], tens=[5:8], hund=[9:12]
+        st8.OnesOut -> Bcd[1:4];
+        st8.TensOut -> Bcd[5:8];
+        st8.HundOut -> Bcd[9:12];
+    }
+}
+
+# BCD -> binary. D digits, each 4 bits. At D=2: ones=Bcd[1:4], tens=Bcd[5:8].
+# value = ones + tens*10. tens*10 = tens<<3 + tens<<1.
+component BcdToBin<D = 2>(Bcd[8]) -> (B[7]) {
+    # tens*10 then + ones, all in 7-bit arithmetic.
+    # tens<<3 = {tens[1:4],0,0,0} (7 bits): bit4..7 = tens[1:4], bits1..3=0
+    # tens<<1 = {tens[1:4],0}     (7 bits): bit2..5 = tens[1:4], bits1=0, bits6..7=0
+    g0: __GND__;
+    addA: RippleN_<7>;   # tens<<3 + tens<<1
+    addB: RippleN_<7>;   # (above) + ones
+    connect {
+        # tens<<3 as 7-bit bus into addA.A
+        g0.O -> addA.A[1];  g0.O -> addA.A[2];  g0.O -> addA.A[3];
+        Bcd[5] -> addA.A[4];  Bcd[6] -> addA.A[5];  Bcd[7] -> addA.A[6];  Bcd[8] -> addA.A[7];
+        # tens<<1 as 7-bit bus into addA.B
+        g0.O -> addA.B[1];
+        Bcd[5] -> addA.B[2];  Bcd[6] -> addA.B[3];  Bcd[7] -> addA.B[4];  Bcd[8] -> addA.B[5];
+        g0.O -> addA.B[6];  g0.O -> addA.B[7];
+        g0.O -> addA.Cin;
+
+        # + ones (zero-extend ones to 7 bits)
+        addA.S -> addB.A;
+        Bcd[1] -> addB.B[1];  Bcd[2] -> addB.B[2];  Bcd[3] -> addB.B[3];  Bcd[4] -> addB.B[4];
+        g0.O -> addB.B[5];  g0.O -> addB.B[6];  g0.O -> addB.B[7];
+        g0.O -> addB.Cin;
+
+        addB.S -> B;
+    }
+}
+
+# =========================================================================
+#  One-digit decimal (BCD) adder
+# =========================================================================
+
+# A[4] + B[4] + Cin. If raw sum > 9 (or carry out of the 4-bit add), add 6.
+component BcdAdder(A[4], B[4], Cin) -> (S[4], Cout) {
+    g0: __GND__;
+    add1: RippleN_<4>;   # A + B + Cin  -> raw[4], rawC
+    add2: RippleN_<4>;   # raw + 0110 (=6) when corrected
+    # >9 detect on raw 4-bit + carry: gt9 = rawC OR (raw4 AND (raw3 OR raw2))
+    o_lo: OR;  a_mid: AND;  o_gt: OR;
+    connect {
+        A -> add1.A;  B -> add1.B;  Cin -> add1.Cin;
+
+        # gt9 = rawC OR (s4 AND (s3 OR s2))
+        add1.S[2] -> o_lo.A;  add1.S[3] -> o_lo.B;     # s2 OR s3
+        o_lo.O -> a_mid.A;    add1.S[4] -> a_mid.B;    # s4 AND (s2 OR s3)
+        a_mid.O -> o_gt.A;    add1.Cout -> o_gt.B;     # OR rawC  => gt9
+        o_gt.O -> Cout;
+
+        # add2 = raw + (0, gt9, gt9, 0)  i.e. add 6 = b0110 gated by gt9
+        add1.S[1] -> add2.A[1];  g0.O   -> add2.B[1];
+        add1.S[2] -> add2.A[2];  o_gt.O -> add2.B[2];
+        add1.S[3] -> add2.A[3];  o_gt.O -> add2.B[3];
+        add1.S[4] -> add2.A[4];  g0.O   -> add2.B[4];
+        g0.O -> add2.Cin;
+        add2.S -> S;
+    }
+}
+
+# =========================================================================
+#  Seven-segment decoder (hex)
+# =========================================================================
+
+# Seg[1]=a .. Seg[7]=g, active-high, common-cathode. Hex digit 0..15.
+# Inputs: Hex[1]=LSB .. Hex[4]=MSB. Each segment = OR of the value-minterms
+# that light it (standard hex font, documented in README). Implementation:
+# build all 16 minterms once (4->16 decoder), then per segment OR the
+# member minterms with a gates::OrN<16>, padding non-members with GND.
+component SevenSegDecoder(Hex[4]) -> (Seg[7]) {
+    n1: NOT;  n2: NOT;  n3: NOT;  n4: NOT;
+    g0: __GND__;
+    >m[16]{ mt{m}: AND;  mt2{m}: AND;  mt3{m}: AND; }   # minterm (m-1) = mt3{m}.O
+    >s[7]{ red{s}: OrN<16>; }                           # one 16-input OR per segment
+
+    connect {
+        Hex[1] -> n1.A;  Hex[2] -> n2.A;  Hex[3] -> n3.A;  Hex[4] -> n4.A;
+
+        # minterm (m-1): AND of the four literals (true literal if that bit of
+        # (m-1) is 1, else the complemented input).
+        # bit-b set in v iff (v/b) - ((v/b)/2)*2 == 1. SHDL groups with {..},
+        # not (..); a `when` comparison must not begin with '(' either.
+        >m[16]{
+            when {m - 1 - {{m-1}/2}*2 == 1}    { Hex[1] -> mt{m}.A; } else { n1.O -> mt{m}.A; }
+            when {{m-1}/2 - {{m-1}/4}*2 == 1}  { Hex[2] -> mt{m}.B; } else { n2.O -> mt{m}.B; }
+            mt{m}.O -> mt2{m}.A;
+            when {{m-1}/4 - {{m-1}/8}*2 == 1}  { Hex[3] -> mt2{m}.B; } else { n3.O -> mt2{m}.B; }
+            mt2{m}.O -> mt3{m}.A;
+            when {{m-1}/8 - {{m-1}/16}*2 == 1} { Hex[4] -> mt3{m}.B; } else { n4.O -> mt3{m}.B; }
+        }
+
+        # Per-segment OR buses. red{s}.A[m] = minterm (m-1) if value (m-1) is in
+        # segment s's ON-set, else 0. v = m-1.
+        #   a (s=1): 0,2,3,5,6,7,8,9,10,12,14,15
+        #   b (s=2): 0,1,2,3,4,7,8,9,10,13
+        #   c (s=3): 0,1,3,4,5,6,7,8,9,10,11,13
+        #   d (s=4): 0,2,3,5,6,8,9,11,12,13,14
+        #   e (s=5): 0,2,6,8,10,11,12,13,14,15
+        #   f (s=6): 0,4,5,6,8,9,10,11,12,14,15
+        #   g (s=7): 2,3,4,5,6,8,9,10,11,13,14,15
+        >m[16]{
+            # segment a
+            when {m-1==0 || m-1==2 || m-1==3 || m-1==5 || m-1==6 || m-1==7 || m-1==8 || m-1==9 || m-1==10 || m-1==12 || m-1==14 || m-1==15} { mt3{m}.O -> red1.A[{m}]; } else { g0.O -> red1.A[{m}]; }
+            # segment b
+            when {m-1==0 || m-1==1 || m-1==2 || m-1==3 || m-1==4 || m-1==7 || m-1==8 || m-1==9 || m-1==10 || m-1==13} { mt3{m}.O -> red2.A[{m}]; } else { g0.O -> red2.A[{m}]; }
+            # segment c
+            when {m-1==0 || m-1==1 || m-1==3 || m-1==4 || m-1==5 || m-1==6 || m-1==7 || m-1==8 || m-1==9 || m-1==10 || m-1==11 || m-1==13} { mt3{m}.O -> red3.A[{m}]; } else { g0.O -> red3.A[{m}]; }
+            # segment d
+            when {m-1==0 || m-1==2 || m-1==3 || m-1==5 || m-1==6 || m-1==8 || m-1==9 || m-1==11 || m-1==12 || m-1==13 || m-1==14} { mt3{m}.O -> red4.A[{m}]; } else { g0.O -> red4.A[{m}]; }
+            # segment e
+            when {m-1==0 || m-1==2 || m-1==6 || m-1==8 || m-1==10 || m-1==11 || m-1==12 || m-1==13 || m-1==14 || m-1==15} { mt3{m}.O -> red5.A[{m}]; } else { g0.O -> red5.A[{m}]; }
+            # segment f
+            when {m-1==0 || m-1==4 || m-1==5 || m-1==6 || m-1==8 || m-1==9 || m-1==10 || m-1==11 || m-1==12 || m-1==14 || m-1==15} { mt3{m}.O -> red6.A[{m}]; } else { g0.O -> red6.A[{m}]; }
+            # segment g
+            when {m-1==2 || m-1==3 || m-1==4 || m-1==5 || m-1==6 || m-1==8 || m-1==9 || m-1==10 || m-1==11 || m-1==13 || m-1==14 || m-1==15} { mt3{m}.O -> red7.A[{m}]; } else { g0.O -> red7.A[{m}]; }
+        }
+
+        red1.O -> Seg[1];  red2.O -> Seg[2];  red3.O -> Seg[3];  red4.O -> Seg[4];
+        red5.O -> Seg[5];  red6.O -> Seg[6];  red7.O -> Seg[7];
+    }
+}
+
+# =========================================================================
+#  Parity
+# =========================================================================
+
+component ParityGen<N = 8>(D[N]) -> (P) {
+    x: XorN<N>;
+    connect { D -> x.A;  x.O -> P; }
+}
+
+component ParityCheck<N = 8>(D[N], P) -> (Err) {
+    x: XorN<N>;  e: XOR;
+    connect { D -> x.A;  x.O -> e.A;  P -> e.B;  e.O -> Err; }
+}
+
+# =========================================================================
+#  Hamming(7,4)
+# =========================================================================
+
+# Encoder. Data D[1..4] -> positions 3,5,6,7. Parity at 1,2,4.
+#   p1 = d1 ^ d2 ^ d4   (positions 3,5,7)
+#   p2 = d1 ^ d3 ^ d4   (positions 3,6,7)
+#   p4 = d2 ^ d3 ^ d4   (positions 5,6,7)
+component HammingEncode(D[4]) -> (Code[7]) {
+    p1a: XOR; p1b: XOR;
+    p2a: XOR; p2b: XOR;
+    p4a: XOR; p4b: XOR;
+    connect {
+        # p1 = d1 ^ d2 ^ d4
+        D[1] -> p1a.A;  D[2] -> p1a.B;  p1a.O -> p1b.A;  D[4] -> p1b.B;  p1b.O -> Code[1];
+        # p2 = d1 ^ d3 ^ d4
+        D[1] -> p2a.A;  D[3] -> p2a.B;  p2a.O -> p2b.A;  D[4] -> p2b.B;  p2b.O -> Code[2];
+        # position 3 = d1
+        D[1] -> Code[3];
+        # p4 = d2 ^ d3 ^ d4
+        D[2] -> p4a.A;  D[3] -> p4a.B;  p4a.O -> p4b.A;  D[4] -> p4b.B;  p4b.O -> Code[4];
+        # positions 5,6,7 = d2,d3,d4
+        D[2] -> Code[5];
+        D[3] -> Code[6];
+        D[4] -> Code[7];
+    }
+}
+
+# Decoder. Compute syndrome, correct flipped bit, output the 4 data bits.
+#   s1 = c1 ^ c3 ^ c5 ^ c7
+#   s2 = c2 ^ c3 ^ c6 ^ c7
+#   s4 = c4 ^ c5 ^ c6 ^ c7
+# syndrome value = s1 + 2 s2 + 4 s4 = position of flipped bit (0 = none).
+# Corrected code bit j = Code[j] XOR (syndrome == j).
+# Data out: D[1]=corr@3, D[2]=corr@5, D[3]=corr@6, D[4]=corr@7. Err = s1|s2|s4.
+component HammingDecode(Code[7]) -> (D[4], Err) {
+    # syndrome bits
+    s1a: XOR; s1b: XOR; s1c: XOR;
+    s2a: XOR; s2b: XOR; s2c: XOR;
+    s4a: XOR; s4b: XOR; s4c: XOR;
+    # syndrome inverters
+    ns1: NOT; ns2: NOT; ns4: NOT;
+    # equality detectors (syndrome == position) for positions 3,5,6,7
+    eq3: AND; eq3b: AND;       # 011 -> s1 & s2 & ~s4
+    eq5: AND; eq5b: AND;       # 101 -> s1 & ~s2 & s4
+    eq6: AND; eq6b: AND;       # 110 -> ~s1 & s2 & s4
+    eq7: AND; eq7b: AND;       # 111 -> s1 & s2 & s4
+    # correction XORs for the four data positions
+    c3: XOR; c5: XOR; c6: XOR; c7: XOR;
+    # error OR
+    e1: OR; e2: OR;
+    connect {
+        # s1 = c1 ^ c3 ^ c5 ^ c7
+        Code[1] -> s1a.A;  Code[3] -> s1a.B;
+        s1a.O -> s1b.A;    Code[5] -> s1b.B;
+        s1b.O -> s1c.A;    Code[7] -> s1c.B;     # s1c.O = s1
+        # s2 = c2 ^ c3 ^ c6 ^ c7
+        Code[2] -> s2a.A;  Code[3] -> s2a.B;
+        s2a.O -> s2b.A;    Code[6] -> s2b.B;
+        s2b.O -> s2c.A;    Code[7] -> s2c.B;     # s2c.O = s2
+        # s4 = c4 ^ c5 ^ c6 ^ c7
+        Code[4] -> s4a.A;  Code[5] -> s4a.B;
+        s4a.O -> s4b.A;    Code[6] -> s4b.B;
+        s4b.O -> s4c.A;    Code[7] -> s4c.B;     # s4c.O = s4
+
+        s1c.O -> ns1.A;  s2c.O -> ns2.A;  s4c.O -> ns4.A;
+
+        # eq3 = s1 & s2 & ~s4
+        s1c.O -> eq3.A;  s2c.O -> eq3.B;  eq3.O -> eq3b.A;  ns4.O -> eq3b.B;
+        # eq5 = s1 & ~s2 & s4
+        s1c.O -> eq5.A;  ns2.O -> eq5.B;  eq5.O -> eq5b.A;  s4c.O -> eq5b.B;
+        # eq6 = ~s1 & s2 & s4
+        ns1.O -> eq6.A;  s2c.O -> eq6.B;  eq6.O -> eq6b.A;  s4c.O -> eq6b.B;
+        # eq7 = s1 & s2 & s4
+        s1c.O -> eq7.A;  s2c.O -> eq7.B;  eq7.O -> eq7b.A;  s4c.O -> eq7b.B;
+
+        # corrected data bits
+        Code[3] -> c3.A;  eq3b.O -> c3.B;  c3.O -> D[1];
+        Code[5] -> c5.A;  eq5b.O -> c5.B;  c5.O -> D[2];
+        Code[6] -> c6.A;  eq6b.O -> c6.B;  c6.O -> D[3];
+        Code[7] -> c7.A;  eq7b.O -> c7.B;  c7.O -> D[4];
+
+        # Err = s1 | s2 | s4
+        s1c.O -> e1.A;  s2c.O -> e1.B;  e1.O -> e2.A;  s4c.O -> e2.B;  e2.O -> Err;
+    }
+}

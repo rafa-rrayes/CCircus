@@ -1,0 +1,30 @@
+{
+  "manifest_format": 1,
+  "name": "mux",
+  "version": "0.1.0",
+  "summary": "Selection & routing: mux, demux, decoder, encoder.",
+  "description": "All data routing for SHDL, which has no tri-state: 2:1/4:1/8:1 and generic multiplexers, a 2:1 bus mux, 1:2/1:4/1:8 demultiplexers, one-hot decoders (2->4, 3->8, generic n->2^n), a binary encoder, and an 8->3 priority encoder with a valid flag. Built straight on AND/OR/NOT.",
+  "license": "GPL-3.0-or-later",
+  "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "keywords": ["mux", "multiplexer", "demux", "decoder", "encoder", "priority", "routing"],
+  "shdl": ">=1.0.0",
+  "module": "mux.shdl",
+  "dependencies": {},
+  "tests": "tests/mux.tests.json",
+  "exports": [
+    {"name": "Mux2", "summary": "2:1 multiplexer, 1 bit.", "params": [], "inputs": [{"name": "D0", "width": 1}, {"name": "D1", "width": 1}, {"name": "S", "width": 1}], "outputs": [{"name": "O", "width": 1}], "stdlib_seed": true},
+    {"name": "Mux4", "summary": "4:1 multiplexer.", "params": [], "inputs": [{"name": "D", "width": 4}, {"name": "S", "width": 2}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "Mux8", "summary": "8:1 multiplexer.", "params": [], "inputs": [{"name": "D", "width": 8}, {"name": "S", "width": 3}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "MuxN", "summary": "Generic 2^S-input, W-bit-wide mux.", "params": [{"name": "W", "default": 4}, {"name": "S", "default": 2}], "inputs": [{"name": "D", "width": "W*2^S"}, {"name": "Sel", "width": "S"}], "outputs": [{"name": "O", "width": "W"}]},
+    {"name": "BusMux2", "summary": "2:1 select between two N-bit buses.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "S", "width": 1}], "outputs": [{"name": "O", "width": "N"}], "stdlib_seed": true},
+    {"name": "Demux2", "summary": "1:2 demultiplexer.", "params": [], "inputs": [{"name": "D", "width": 1}, {"name": "S", "width": 1}], "outputs": [{"name": "O0", "width": 1}, {"name": "O1", "width": 1}]},
+    {"name": "Demux4", "summary": "1:4 demultiplexer.", "params": [], "inputs": [{"name": "D", "width": 1}, {"name": "S", "width": 2}], "outputs": [{"name": "O", "width": 4}]},
+    {"name": "Demux8", "summary": "1:8 demultiplexer.", "params": [], "inputs": [{"name": "D", "width": 1}, {"name": "S", "width": 3}], "outputs": [{"name": "O", "width": 8}]},
+    {"name": "Decoder2to4", "summary": "2->4 one-hot decoder with enable.", "params": [], "inputs": [{"name": "A", "width": 2}, {"name": "EN", "width": 1}], "outputs": [{"name": "O", "width": 4}]},
+    {"name": "Decoder3to8", "summary": "3->8 one-hot decoder with enable.", "params": [], "inputs": [{"name": "A", "width": 3}, {"name": "EN", "width": 1}], "outputs": [{"name": "O", "width": 8}]},
+    {"name": "DecoderN", "summary": "Generic n->2^n one-hot decoder.", "params": [{"name": "N", "default": 3}], "inputs": [{"name": "A", "width": "N"}, {"name": "EN", "width": 1}], "outputs": [{"name": "O", "width": "2^N"}]},
+    {"name": "Encoder8to3", "summary": "Binary encoder (one-hot input -> index).", "params": [], "inputs": [{"name": "D", "width": 8}], "outputs": [{"name": "O", "width": 3}]},
+    {"name": "PriorityEnc8", "summary": "8->3 priority encoder + valid flag.", "params": [], "inputs": [{"name": "D", "width": 8}], "outputs": [{"name": "O", "width": 3}, {"name": "Valid", "width": 1}]}
+  ]
+}

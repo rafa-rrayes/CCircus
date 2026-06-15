@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<section>
+  <h1>Search</h1>
+  {% if q %}
+    <p class="muted">{{ results|length }} result{{ "" if results|length == 1 else "s" }}
+       for “<strong>{{ q }}</strong>”.</p>
+  {% else %}
+    <p class="muted">Type a circuit name, a keyword, or a library above.</p>
+  {% endif %}
+
+  {% if results %}
+  <table class="circuit-table">
+    <thead><tr><th>Component</th><th>Library</th><th>Ports / Params</th><th>Description</th></tr></thead>
+    <tbody>
+      {% for c in results %}
+      <tr class="{% if not c.published %}row-planned{% endif %}">
+        <td class="cname">
+          <a href="/circuit/{{ c.library }}/{{ c.name }}">{{ c.name }}</a>
+          {% if c.seed %}<span class="seed">✦</span>{% endif %}
+        </td>
+        <td><a class="libtag" href="/library/{{ c.library }}">{{ c.library }}</a></td>
+        <td><code class="ports">{{ c.ports }}</code></td>
+        <td>{{ c.description|md_inline }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif q %}
+    <p class="empty">No circuits match. Try a primitive (<code>And</code>), a width
+       idea (<code>Adder</code>), or a library name (<code>seq</code>).</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,115 @@
+"""
+gates — universal & wide gates above the six SHDL primitives.
+
+The derived and reduction gates everything else is written in terms of.
+Built straight on AND/OR/NOT/XOR. Bit 1 is the LSB (shdl.md §6); the
+reduction gates require N >= 2. This module has no `top` marker — flatten
+any component explicitly:  shdl-flatten gates.shdl --top Majority3
+"""
+
+# --- derived 2-input gates ------------------------------------------------
+
+component Nand(A, B) -> (O) {
+    a: AND;  n: NOT;
+    connect { A -> a.A;  B -> a.B;  a.O -> n.A;  n.O -> O; }
+}
+
+component Nor(A, B) -> (O) {
+    o: OR;  n: NOT;
+    connect { A -> o.A;  B -> o.B;  o.O -> n.A;  n.O -> O; }
+}
+
+component Xnor(A, B) -> (O) {
+    x: XOR;  n: NOT;
+    connect { A -> x.A;  B -> x.B;  x.O -> n.A;  n.O -> O; }
+}
+
+component Buffer(A) -> (O) {
+    n1: NOT;  n2: NOT;
+    connect { A -> n1.A;  n1.O -> n2.A;  n2.O -> O; }
+}
+
+# --- wide reduction gates (N >= 2) ---------------------------------------
+# A chained generator folds N inputs into one output; `when` seeds the chain
+# head with input 1, the boundary-folding idiom from examples/comparator.
+
+component AndN<N = 4>(A[N]) -> (O) {
+    >i[2:N]{ red{i}: AND; }
+    connect {
+        >i[2:N]{
+            when {i == 2} { A[1]       -> red{i}.A; }
+            else          { red{i-1}.O -> red{i}.A; }
+            A[{i}] -> red{i}.B;
+        }
+        red{N}.O -> O;
+    }
+}
+
+component OrN<N = 4>(A[N]) -> (O) {
+    >i[2:N]{ red{i}: OR; }
+    connect {
+        >i[2:N]{
+            when {i == 2} { A[1]       -> red{i}.A; }
+            else          { red{i-1}.O -> red{i}.A; }
+            A[{i}] -> red{i}.B;
+        }
+        red{N}.O -> O;
+    }
+}
+
+component XorN<N = 4>(A[N]) -> (O) {
+    >i[2:N]{ red{i}: XOR; }
+    connect {
+        >i[2:N]{
+            when {i == 2} { A[1]       -> red{i}.A; }
+            else          { red{i-1}.O -> red{i}.A; }
+            A[{i}] -> red{i}.B;
+        }
+        red{N}.O -> O;
+    }
+}
+
+# --- bitwise (bus) operators ---------------------------------------------
+
+component BitAnd<N = 8>(A[N], B[N]) -> (O[N]) {
+    >i[N]{ g{i}: AND; }
+    connect {
+        >i[N]{ A[{i}] -> g{i}.A;  B[{i}] -> g{i}.B;  g{i}.O -> O[{i}]; }
+    }
+}
+
+component BitOr<N = 8>(A[N], B[N]) -> (O[N]) {
+    >i[N]{ g{i}: OR; }
+    connect {
+        >i[N]{ A[{i}] -> g{i}.A;  B[{i}] -> g{i}.B;  g{i}.O -> O[{i}]; }
+    }
+}
+
+component BitXor<N = 8>(A[N], B[N]) -> (O[N]) {
+    >i[N]{ g{i}: XOR; }
+    connect {
+        >i[N]{ A[{i}] -> g{i}.A;  B[{i}] -> g{i}.B;  g{i}.O -> O[{i}]; }
+    }
+}
+
+component BitNot<N = 8>(A[N]) -> (O[N]) {
+    >i[N]{ g{i}: NOT; }
+    connect {
+        >i[N]{ A[{i}] -> g{i}.A;  g{i}.O -> O[{i}]; }
+    }
+}
+
+# --- 3-input majority / voter (the full-adder carry kernel) --------------
+
+component Majority3(A, B, C) -> (O) {
+    ab: AND;  bc: AND;  ac: AND;
+    o1: OR;   o2: OR;
+    connect {
+        A -> ab.A;  B -> ab.B;
+        B -> bc.A;  C -> bc.B;
+        A -> ac.A;  C -> ac.B;
+        ab.O -> o1.A;  bc.O -> o1.B;
+        o1.O -> o2.A;  ac.O -> o2.B;
+        o2.O -> O;
+    }
+}

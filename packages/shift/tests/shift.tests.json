@@ -1,0 +1,62 @@
+{
+  "test_format": 1,
+  "package": "shift",
+  "cases": [
+    { "component": "ShiftLeft", "steps": 48, "vectors": [
+      {"in": {"A": 1, "Sh": 0}, "out": {"O": 1}},
+      {"in": {"A": 1, "Sh": 1}, "out": {"O": 2}},
+      {"in": {"A": 1, "Sh": 7}, "out": {"O": 128}},
+      {"in": {"A": 3, "Sh": 6}, "out": {"O": 192}},
+      {"in": {"A": 255, "Sh": 4}, "out": {"O": 240}},
+      {"in": {"A": 170, "Sh": 1}, "out": {"O": 84}}
+    ]},
+    { "component": "ShiftRight", "steps": 48, "vectors": [
+      {"in": {"A": 128, "Sh": 0}, "out": {"O": 128}},
+      {"in": {"A": 128, "Sh": 1}, "out": {"O": 64}},
+      {"in": {"A": 128, "Sh": 7}, "out": {"O": 1}},
+      {"in": {"A": 255, "Sh": 4}, "out": {"O": 15}},
+      {"in": {"A": 170, "Sh": 1}, "out": {"O": 85}},
+      {"in": {"A": 240, "Sh": 5}, "out": {"O": 7}}
+    ]},
+    { "component": "ArithShiftR", "steps": 48, "vectors": [
+      {"in": {"A": 128, "Sh": 0}, "out": {"O": 128}},
+      {"in": {"A": 128, "Sh": 1}, "out": {"O": 192}},
+      {"in": {"A": 128, "Sh": 4}, "out": {"O": 248}},
+      {"in": {"A": 128, "Sh": 7}, "out": {"O": 255}},
+      {"in": {"A": 64, "Sh": 2}, "out": {"O": 16}},
+      {"in": {"A": 240, "Sh": 2}, "out": {"O": 252}}
+    ]},
+    { "component": "BarrelShifter", "steps": 56, "vectors": [
+      {"in": {"A": 1, "Sh": 3, "Dir": 0}, "out": {"O": 8}},
+      {"in": {"A": 128, "Sh": 3, "Dir": 1}, "out": {"O": 16}},
+      {"in": {"A": 60, "Sh": 2, "Dir": 0}, "out": {"O": 240}},
+      {"in": {"A": 60, "Sh": 2, "Dir": 1}, "out": {"O": 15}},
+      {"in": {"A": 255, "Sh": 7, "Dir": 0}, "out": {"O": 128}},
+      {"in": {"A": 255, "Sh": 7, "Dir": 1}, "out": {"O": 1}}
+    ]},
+    { "component": "BarrelRotator", "steps": 48, "vectors": [
+      {"in": {"A": 129, "Sh": 0}, "out": {"O": 129}},
+      {"in": {"A": 129, "Sh": 1}, "out": {"O": 3}},
+      {"in": {"A": 15, "Sh": 4}, "out": {"O": 240}},
+      {"in": {"A": 1, "Sh": 7}, "out": {"O": 128}},
+      {"in": {"A": 170, "Sh": 1}, "out": {"O": 85}},
+      {"in": {"A": 170, "Sh": 4}, "out": {"O": 170}}
+    ]},
+    { "component": "FunnelShifter", "steps": 56, "vectors": [
+      {"in": {"Hi": 0, "Lo": 255, "Sh": 0}, "out": {"O": 255}},
+      {"in": {"Hi": 255, "Lo": 0, "Sh": 4}, "out": {"O": 240}},
+      {"in": {"Hi": 18, "Lo": 52, "Sh": 4}, "out": {"O": 35}},
+      {"in": {"Hi": 1, "Lo": 0, "Sh": 1}, "out": {"O": 128}},
+      {"in": {"Hi": 255, "Lo": 255, "Sh": 7}, "out": {"O": 255}},
+      {"in": {"Hi": 240, "Lo": 15, "Sh": 0}, "out": {"O": 15}}
+    ]},
+    { "component": "BitReverse", "steps": 8, "vectors": [
+      {"in": {"A": 1}, "out": {"O": 128}},
+      {"in": {"A": 128}, "out": {"O": 1}},
+      {"in": {"A": 170}, "out": {"O": 85}},
+      {"in": {"A": 85}, "out": {"O": 170}},
+      {"in": {"A": 15}, "out": {"O": 240}},
+      {"in": {"A": 0}, "out": {"O": 0}}
+    ]}
+  ]
+}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ circ.name }}{% endblock %}
+{% block content %}
+<nav class="crumbs">
+  <a href="/">Index</a> / <a href="/library/{{ lib.name }}">{{ lib.name }}</a> /
+  <span>{{ circ.name }}</span>
+</nav>
+
+<section class="circuit-head">
+  <h1>{{ circ.name }}
+    {% if circ.seed %}<span class="seed" title="seeded from shdlc/examples">✦</span>{% endif %}
+    {% if circ.published %}
+      <span class="badge badge-live">published</span>
+    {% else %}
+      <span class="badge badge-planned">planned</span>
+    {% endif %}
+  </h1>
+  <p class="lede">{{ circ.description|md_inline }}</p>
+  <code class="ports big">{{ circ.name }} {{ circ.ports }}</code>
+</section>
+
+<section class="usage">
+  <h2 class="section-head">Use it</h2>
+  <pre class="code-block"><code>shdl add {{ lib.name }}
+
+use {{ lib.name }}::{<span class="kw">{{ circ.name }}</span>};
+top component MyDesign(...) -> (...) {
+    u: {{ circ.name }};
+    ...
+}</code></pre>
+</section>
+
+{% if circ.published and circ.source %}
+<section>
+  <h2 class="section-head">SHDL source
+    <span class="count">packages/{{ lib.name }}/{{ lib.name }}.shdl</span>
+  </h2>
+  <pre class="code-block shdl"><code>{{ circ.source|highlight_shdl }}</code></pre>
+</section>
+{% else %}
+<section>
+  <div class="planned-note">
+    <strong>Not yet published.</strong> This circuit is in the catalog but has no
+    authored <code>.shdl</code> source in <code>packages/</code> yet — it’s on the
+    build list for the <a href="/library/{{ lib.name }}">{{ lib.name }}</a> library.
+  </div>
+</section>
+{% endif %}
+
+{% if circ.tests %}
+<section>
+  <h2 class="section-head">Test vectors
+    {% if circ.tests.vectors %}<span class="count">{{ circ.tests.vectors|length }} cases</span>{% endif %}
+  </h2>
+  {% if circ.tests.vectors %}
+  <table class="vector-table">
+    <thead><tr><th>inputs</th><th>→</th><th>outputs</th></tr></thead>
+    <tbody>
+      {% for v in circ.tests.vectors %}
+      <tr>
+        <td><code>{{ v["in"]|tojson }}</code></td>
+        <td class="arrow">→</td>
+        <td><code>{{ v["out"]|tojson }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif circ.tests.ops %}
+  <pre class="code-block"><code>{{ circ.tests.ops|tojson(indent=2) }}</code></pre>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

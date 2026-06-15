@@ -1,0 +1,91 @@
+{
+  "test_format": 1,
+  "package": "mux",
+  "cases": [
+    { "component": "Mux2", "steps": 8, "vectors": [
+      {"in": {"D0": 0, "D1": 1, "S": 0}, "out": {"O": 0}},
+      {"in": {"D0": 0, "D1": 1, "S": 1}, "out": {"O": 1}},
+      {"in": {"D0": 1, "D1": 0, "S": 0}, "out": {"O": 1}},
+      {"in": {"D0": 1, "D1": 0, "S": 1}, "out": {"O": 0}}
+    ]},
+    { "component": "Mux4", "steps": 16, "vectors": [
+      {"in": {"D": 1, "S": 0}, "out": {"O": 1}},
+      {"in": {"D": 2, "S": 1}, "out": {"O": 1}},
+      {"in": {"D": 4, "S": 2}, "out": {"O": 1}},
+      {"in": {"D": 8, "S": 3}, "out": {"O": 1}},
+      {"in": {"D": 6, "S": 0}, "out": {"O": 0}},
+      {"in": {"D": 10, "S": 1}, "out": {"O": 1}}
+    ]},
+    { "component": "Mux8", "steps": 24, "vectors": [
+      {"in": {"D": 1, "S": 0}, "out": {"O": 1}},
+      {"in": {"D": 128, "S": 7}, "out": {"O": 1}},
+      {"in": {"D": 170, "S": 0}, "out": {"O": 0}},
+      {"in": {"D": 170, "S": 1}, "out": {"O": 1}},
+      {"in": {"D": 85, "S": 4}, "out": {"O": 1}},
+      {"in": {"D": 85, "S": 5}, "out": {"O": 0}}
+    ]},
+    { "component": "MuxN", "steps": 32, "vectors": [
+      {"in": {"D": 51555, "Sel": 0}, "out": {"O": 3}},
+      {"in": {"D": 51555, "Sel": 1}, "out": {"O": 6}},
+      {"in": {"D": 51555, "Sel": 2}, "out": {"O": 9}},
+      {"in": {"D": 51555, "Sel": 3}, "out": {"O": 12}}
+    ]},
+    { "component": "BusMux2", "steps": 8, "vectors": [
+      {"in": {"A": 170, "B": 85, "S": 0}, "out": {"O": 170}},
+      {"in": {"A": 170, "B": 85, "S": 1}, "out": {"O": 85}},
+      {"in": {"A": 255, "B": 0, "S": 0}, "out": {"O": 255}},
+      {"in": {"A": 255, "B": 0, "S": 1}, "out": {"O": 0}}
+    ]},
+    { "component": "Demux2", "steps": 8, "vectors": [
+      {"in": {"D": 1, "S": 0}, "out": {"O0": 1, "O1": 0}},
+      {"in": {"D": 1, "S": 1}, "out": {"O0": 0, "O1": 1}},
+      {"in": {"D": 0, "S": 1}, "out": {"O0": 0, "O1": 0}}
+    ]},
+    { "component": "Demux4", "steps": 12, "vectors": [
+      {"in": {"D": 1, "S": 0}, "out": {"O": 1}},
+      {"in": {"D": 1, "S": 1}, "out": {"O": 2}},
+      {"in": {"D": 1, "S": 2}, "out": {"O": 4}},
+      {"in": {"D": 1, "S": 3}, "out": {"O": 8}},
+      {"in": {"D": 0, "S": 2}, "out": {"O": 0}}
+    ]},
+    { "component": "Demux8", "steps": 16, "vectors": [
+      {"in": {"D": 1, "S": 0}, "out": {"O": 1}},
+      {"in": {"D": 1, "S": 3}, "out": {"O": 8}},
+      {"in": {"D": 1, "S": 7}, "out": {"O": 128}},
+      {"in": {"D": 0, "S": 5}, "out": {"O": 0}}
+    ]},
+    { "component": "Decoder2to4", "steps": 12, "vectors": [
+      {"in": {"A": 0, "EN": 1}, "out": {"O": 1}},
+      {"in": {"A": 1, "EN": 1}, "out": {"O": 2}},
+      {"in": {"A": 2, "EN": 1}, "out": {"O": 4}},
+      {"in": {"A": 3, "EN": 1}, "out": {"O": 8}},
+      {"in": {"A": 3, "EN": 0}, "out": {"O": 0}}
+    ]},
+    { "component": "Decoder3to8", "steps": 16, "vectors": [
+      {"in": {"A": 0, "EN": 1}, "out": {"O": 1}},
+      {"in": {"A": 5, "EN": 1}, "out": {"O": 32}},
+      {"in": {"A": 7, "EN": 1}, "out": {"O": 128}},
+      {"in": {"A": 7, "EN": 0}, "out": {"O": 0}}
+    ]},
+    { "component": "DecoderN", "steps": 16, "vectors": [
+      {"in": {"A": 0, "EN": 1}, "out": {"O": 1}},
+      {"in": {"A": 3, "EN": 1}, "out": {"O": 8}},
+      {"in": {"A": 6, "EN": 1}, "out": {"O": 64}},
+      {"in": {"A": 4, "EN": 0}, "out": {"O": 0}}
+    ]},
+    { "component": "Encoder8to3", "steps": 8, "vectors": [
+      {"in": {"D": 1}, "out": {"O": 0}},
+      {"in": {"D": 2}, "out": {"O": 1}},
+      {"in": {"D": 16}, "out": {"O": 4}},
+      {"in": {"D": 128}, "out": {"O": 7}}
+    ]},
+    { "component": "PriorityEnc8", "steps": 16, "vectors": [
+      {"in": {"D": 0}, "out": {"O": 0, "Valid": 0}},
+      {"in": {"D": 1}, "out": {"O": 0, "Valid": 1}},
+      {"in": {"D": 128}, "out": {"O": 7, "Valid": 1}},
+      {"in": {"D": 6}, "out": {"O": 2, "Valid": 1}},
+      {"in": {"D": 255}, "out": {"O": 7, "Valid": 1}},
+      {"in": {"D": 18}, "out": {"O": 4, "Valid": 1}}
+    ]}
+  ]
+}

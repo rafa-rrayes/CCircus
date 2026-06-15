@@ -1,0 +1,22 @@
+[project]
+name = "ccircus"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+ccircus = "web.serve:main"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["web"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

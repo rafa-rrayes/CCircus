@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ lib.name }}{% endblock %}
+{% block content %}
+<nav class="crumbs"><a href="/">Index</a> / <span>{{ lib.name }}</span></nav>
+
+<section class="lib-head">
+  <div class="lib-head-main">
+    <h1>{{ lib.name }}
+      {% if lib.published %}
+        <span class="badge badge-live">{{ lib.published_count }} live</span>
+      {% else %}
+        <span class="badge badge-planned">planned</span>
+      {% endif %}
+    </h1>
+    <p class="lede">{{ lib.title or lib.blurb }}</p>
+    <p class="muted">{{ lib.blurb|md_inline }}</p>
+  </div>
+  <aside class="lib-head-side">
+    <div class="install-block">
+      <span class="install-label">install</span>
+      <code>shdl add {{ lib.name }}</code>
+    </div>
+    <dl class="meta">
+      <dt>version</dt><dd>{{ lib.version }}</dd>
+      <dt>circuits</dt><dd>{{ lib.circuits|length }}</dd>
+      <dt>depends on</dt>
+      <dd>
+        {% if deps %}
+          {% for d in deps %}<a href="/library/{{ d.name }}">{{ d.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+        {% elif dep_names %}
+          {{ dep_names|join(", ") }}
+        {% else %}
+          <span class="muted">the six primitives</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </aside>
+</section>
+
+<section>
+  <h2 class="section-head">Circuits</h2>
+  <table class="circuit-table">
+    <thead>
+      <tr><th>#</th><th>Component</th><th>Ports / Params</th><th>Description</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in lib.circuits %}
+      <tr class="{% if not c.published %}row-planned{% endif %}">
+        <td class="num">{{ c.number }}</td>
+        <td class="cname">
+          <a href="/circuit/{{ lib.name }}/{{ c.name }}">{{ c.name }}</a>
+          {% if c.seed %}<span class="seed" title="seeded from shdlc/examples">✦</span>{% endif %}
+        </td>
+        <td><code class="ports">{{ c.ports }}</code></td>
+        <td>{{ c.description|md_inline }}</td>
+        <td class="status">
+          {% if c.published %}<span class="dot dot-live" title="published"></span>
+          {% else %}<span class="dot dot-planned" title="planned"></span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{
+  "manifest_format": 1,
+  "name": "gates",
+  "version": "0.1.0",
+  "summary": "Universal & wide gates above the six SHDL primitives.",
+  "description": "The derived and reduction gates everything else is written in terms of: NAND/NOR/XNOR, a fan-out buffer, N-input AND/OR/XOR reduction trees, bitwise bus operators, and a 3-input majority voter. Built straight on AND/OR/NOT/XOR.",
+  "license": "GPL-3.0-or-later",
+  "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "keywords": ["gates", "nand", "nor", "xnor", "reduction", "bitwise", "majority"],
+  "shdl": ">=1.0.0",
+  "module": "gates.shdl",
+  "dependencies": {},
+  "tests": "tests/gates.tests.json",
+  "exports": [
+    {"name": "Nand", "summary": "NAND — universal gate.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}], "outputs": [{"name": "O", "width": 1}], "stdlib_seed": true},
+    {"name": "Nor", "summary": "NOR — universal gate.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}], "outputs": [{"name": "O", "width": 1}], "stdlib_seed": true},
+    {"name": "Xnor", "summary": "XNOR — 1-bit equality.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}], "outputs": [{"name": "O", "width": 1}], "stdlib_seed": true},
+    {"name": "Buffer", "summary": "Identity / fan-out buffer.", "params": [], "inputs": [{"name": "A", "width": 1}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "AndN", "summary": "N-input AND reduction (N>=2).", "params": [{"name": "N", "default": 4}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "OrN", "summary": "N-input OR reduction (N>=2).", "params": [{"name": "N", "default": 4}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "XorN", "summary": "N-input XOR / parity reduction (N>=2).", "params": [{"name": "N", "default": 4}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "BitAnd", "summary": "Bitwise AND of two N-bit buses.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "O", "width": "N"}], "stdlib_seed": true},
+    {"name": "BitOr", "summary": "Bitwise OR of two N-bit buses.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "O", "width": "N"}], "stdlib_seed": true},
+    {"name": "BitXor", "summary": "Bitwise XOR of two N-bit buses.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "O", "width": "N"}], "stdlib_seed": true},
+    {"name": "BitNot", "summary": "Bus inverter / one's complement.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "Majority3", "summary": "3-input majority voter (the adder carry kernel).", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}, {"name": "C", "width": 1}], "outputs": [{"name": "O", "width": 1}]}
+  ]
+}

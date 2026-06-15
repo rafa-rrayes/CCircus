@@ -1,0 +1,198 @@
+"""
+clock — oscillators, dividers, edge logic, and PWM.
+
+Free-running and derived timing, built on `seq`. The one component that owns
+raw gates is the ring oscillator: an odd loop of inverters has no fixed point,
+so it must own its NOTs and seed every one (a composite NOT could not be
+seeded). Everything else composes `seq` flip-flops and counters — their seeds
+carry through flattening, so these need no `init` of their own.
+
+The edge/pulse/divider parts are synchronous: drive `Clk` 0->1 with `step`s
+between edges. Bit 1 is the LSB.
+"""
+
+use seq::{TFlipFlop, DFlipFlop, JohnsonCounter, SyncCounter};
+
+# --- Ring oscillator -----------------------------------------------------
+# An odd loop of inverters never settles, so it free-runs. Owns three raw
+# NOTs and seeds every one (the loop has no fixed point — the seed only
+# fixes the starting phase). Period = 2 * (loop length) = 6 cycles here.
+component RingOscillator() -> (Clk) {
+    n1: NOT;  n2: NOT;  n3: NOT;
+
+    init { n1.O = 0;  n2.O = 1;  n3.O = 0; }
+
+    connect {
+        n3.O -> n1.A;          # close the odd loop
+        n1.O -> n2.A;
+        n2.O -> n3.A;
+        n1.O -> Clk;           # tap one stage as the clock
+    }
+}
+
+# --- Divide-by-2 ---------------------------------------------------------
+# A toggle flip-flop with T tied high halves the input frequency: Out flips
+# on every rising edge of Clk.
+component ClockDivideBy2(Clk) -> (Out) {
+    ONE = 1;
+    t: TFlipFlop;
+
+    connect {
+        ONE -> t.T;
+        Clk -> t.Clk;
+        t.Q -> Out;
+    }
+}
+
+# --- Divide-by-N (N even) ------------------------------------------------
+# A width-(N/2) Johnson counter cycles through N states; its top bit is high
+# for exactly N/2 of them, so it is a clean 50%-duty divide-by-N square wave.
+# Reuses seq::JohnsonCounter — self-starting from all-zero, no arithmetic
+# width (hence no log2) needed. N is even by construction (the default is 10).
+component ClockDivideByN<N = 10>(Clk) -> (Out) {
+    j: JohnsonCounter<N/2>;
+
+    connect {
+        Clk        -> j.Clk;
+        j.Q[N/2]   -> Out;          # MSB toggles once every N input clocks
+    }
+}
+
+# --- Pulse generator (one-shot) ------------------------------------------
+# Emits a single-cycle pulse on each rising edge of Trig (synchronous to
+# Clk). prevTrig = Trig delayed one clock; Pulse = Trig AND NOT prevTrig, so
+# it is high for exactly the clock period after Trig first goes high.
+component PulseGenerator(Trig, Clk) -> (Pulse) {
+    d:   DFlipFlop;       # remembers Trig as of the last edge
+    inv: NOT;
+    a:   AND;
+
+    connect {
+        Trig -> d.D;   Clk -> d.Clk;
+        d.Q  -> inv.A;                 # NOT prevTrig
+        Trig -> a.A;   inv.O -> a.B;   # Pulse = Trig AND NOT prevTrig
+        a.O  -> Pulse;
+    }
+}
+
+# --- Rising-edge detector ------------------------------------------------
+# Edge = In AND NOT(prev In). High for one clock period after In rises.
+component EdgeRising(In, Clk) -> (Edge) {
+    d:   DFlipFlop;
+    inv: NOT;
+    a:   AND;
+
+    connect {
+        In  -> d.D;   Clk -> d.Clk;
+        d.Q -> inv.A;
+        In  -> a.A;   inv.O -> a.B;
+        a.O -> Edge;
+    }
+}
+
+# --- Falling-edge detector -----------------------------------------------
+# Edge = (NOT In) AND (prev In). High for one clock period after In falls.
+component EdgeFalling(In, Clk) -> (Edge) {
+    d:    DFlipFlop;
+    inv:  NOT;
+    a:    AND;
+
+    connect {
+        In   -> d.D;   Clk -> d.Clk;
+        In   -> inv.A;                 # NOT In (current)
+        inv.O -> a.A;  d.Q -> a.B;     # Edge = NOT In AND prev In
+        a.O  -> Edge;
+    }
+}
+
+# --- Debouncer -----------------------------------------------------------
+# Counter-based: Out only changes after In has held its new value for a full
+# count. Here, an N-stage synchronous counter is enabled while In disagrees
+# with the stored output and is held by an internal D flip-flop; when the
+# counter overflows (all stages high AND In still set) the output adopts In.
+# For testability this is the canonical "shift-register agreement" debouncer:
+# In is sampled into an N-stage shift register; Out is set when all N samples
+# agree (all 1 -> Out=1) and reset when all agree 0. A stray 1-cycle glitch
+# in In therefore never reaches Out.
+component Debouncer<N = 8>(In, Clk) -> (Out) {
+    >i[N]{ s{i}: DFlipFlop; }      # N-deep sample shift register (s1 newest)
+    >i[2:N]{ andTree{i}: AND; }    # allOne = AND of every sample
+    >i[2:N]{ orTree{i}: OR; }      # anyOne = OR  of every sample
+    keep:     AND;                 # hold: Out AND anyOne (= Out AND NOT all-zero)
+    drive:    OR;                  # next Out = allOne OR keep
+    setLatch: DFlipFlop;           # the debounced output register
+
+    connect {
+        # sample chain: In enters s1; each edge shifts down toward sN.
+        >i[N]{
+            when {i == 1} { In       -> s{i}.D; }
+            else          { s{i-1}.Q -> s{i}.D; }
+            Clk -> s{i}.Clk;
+        }
+
+        # allOne = AND of all N samples
+        >i[2:N]{
+            when {i == 2} { s1.Q           -> andTree{i}.A; }
+            else          { andTree{i-1}.O -> andTree{i}.A; }
+            s{i}.Q -> andTree{i}.B;
+        }
+
+        # anyOne = OR of all N samples (its complement would be all-zero)
+        >i[2:N]{
+            when {i == 2} { s1.Q          -> orTree{i}.A; }
+            else          { orTree{i-1}.O -> orTree{i}.A; }
+            s{i}.Q -> orTree{i}.B;
+        }
+
+        # next Out = allOne OR (current Out AND anyOne):
+        #   all samples 1 -> set; all samples 0 -> reset; otherwise hold.
+        setLatch.Q   -> keep.A;   orTree{N}.O -> keep.B;
+        andTree{N}.O -> drive.A;  keep.O -> drive.B;
+        drive.O      -> setLatch.D;
+        Clk          -> setLatch.Clk;
+        setLatch.Q   -> Out;
+    }
+}
+
+# --- PWM generator -------------------------------------------------------
+# A free-running N-bit synchronous counter compared against Duty: Out is high
+# while counter < Duty. Over each 2^N-clock period Out is high for Duty
+# clocks, giving duty cycle Duty/2^N. The "<" compare is a borrow-out ripple
+# (counter - Duty borrows iff counter < Duty).
+component PwmGenerator<N = 8>(Duty[N], Clk) -> (Out) {
+    ONE = 1;
+    cnt: SyncCounter<N>;                 # free-running counter (EN tied high)
+
+    # Magnitude compare cnt < Duty via subtract-with-borrow on (cnt - Duty).
+    # Borrow out of bit N is 1 exactly when cnt < Duty, so Out = borrow[N].
+    #   gen{i}    = (NOT cnt[i]) AND Duty[i]          (this bit forces a borrow)
+    #   eq{i}     = NOT(cnt[i] XOR Duty[i])           (bits equal -> propagate)
+    #   borrow[1] = gen[1]      (borrow-in = 0)
+    #   borrow[i] = gen[i] OR (eq[i] AND borrow[i-1])
+    >i[N]{ nC{i}: NOT;  gen{i}: AND;  xr{i}: XOR;  eq{i}: NOT; }
+    >i[2:N]{ prop{i}: AND;  bor{i}: OR; }
+
+    connect {
+        ONE -> cnt.EN;
+        Clk -> cnt.Clk;
+
+        >i[N]{
+            cnt.Q[{i}] -> nC{i}.A;                          # NOT cnt[i]
+            nC{i}.O    -> gen{i}.A;   Duty[{i}] -> gen{i}.B;  # gen = (NOT cnt) AND Duty
+            cnt.Q[{i}] -> xr{i}.A;    Duty[{i}] -> xr{i}.B;   # cnt XOR Duty
+            xr{i}.O    -> eq{i}.A;                            # eq = NOT(cnt XOR Duty)
+        }
+
+        # borrow ripple. borrow[1] is just gen[1]; expose it via gen1 directly.
+        >i[2:N]{
+            when {i == 2} { gen1.O      -> prop{i}.A; }   # AND with borrow[1]=gen[1]
+            else          { bor{i-1}.O  -> prop{i}.A; }   # AND with borrow[i-1]
+            eq{i}.O   -> prop{i}.B;                        # propagate iff bits equal
+            gen{i}.O  -> bor{i}.A;   prop{i}.O -> bor{i}.B;   # borrow[i]
+        }
+
+        # Out = borrow[N]; for N==1 that degenerates to gen[1].
+        when {N == 1} { gen1.O  -> Out; }
+        else          { bor{N}.O -> Out; }
+    }
+}

@@ -1,0 +1,35 @@
+{
+  "manifest_format": 1,
+  "name": "arith",
+  "version": "0.1.0",
+  "summary": "Adders, subtractors, comparators, multiply/divide, and an ALU.",
+  "description": "The arithmetic core of Circuit Circus: half/full adders, ripple / carry-lookahead / carry-select / carry-save adders, a borrow subtractor and mode-bit add/subtract, incrementer / decrementer / two's-complement negate, equality and magnitude comparators, an unsigned array multiplier, a restoring unsigned divider, and an 8-operation ALU with carry and zero flags. Everything is composed from the six SHDL primitives plus a few gates from the gates package — no behavioral arithmetic. Two's complement throughout: A - B = A + ~B + 1.",
+  "license": "GPL-3.0-or-later",
+  "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "keywords": ["adder", "subtractor", "multiplier", "divider", "comparator", "alu", "carry-lookahead", "two's-complement"],
+  "shdl": ">=1.0.0",
+  "module": "arith.shdl",
+  "dependencies": {
+    "gates": "^0.1.0"
+  },
+  "tests": "tests/arith.tests.json",
+  "exports": [
+    {"name": "HalfAdder", "summary": "Half adder: A + B.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}], "outputs": [{"name": "Sum", "width": 1}, {"name": "Cout", "width": 1}]},
+    {"name": "FullAdder", "summary": "Full adder — the arithmetic unit cell.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}, {"name": "Cin", "width": 1}], "outputs": [{"name": "Sum", "width": 1}, {"name": "Cout", "width": 1}], "stdlib_seed": true},
+    {"name": "RippleAdder", "summary": "Ripple-carry adder; depth proportional to N.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Cin", "width": 1}], "outputs": [{"name": "Sum", "width": "N"}, {"name": "Cout", "width": 1}], "stdlib_seed": true},
+    {"name": "CarryLookahead", "summary": "Carry-lookahead adder; carries settle in a few levels.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Cin", "width": 1}], "outputs": [{"name": "Sum", "width": "N"}, {"name": "Cout", "width": 1}]},
+    {"name": "CarrySelect", "summary": "Carry-select adder: speculative high half selected by the low carry.", "params": [{"name": "N", "default": 16}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Cin", "width": 1}], "outputs": [{"name": "Sum", "width": "N"}, {"name": "Cout", "width": 1}]},
+    {"name": "CarrySave", "summary": "3:2 carry-save compressor row (sum + carry vectors).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "C", "width": "N"}], "outputs": [{"name": "S", "width": "N"}, {"name": "Cy", "width": "N"}]},
+    {"name": "Subtractor", "summary": "Borrow subtractor: Diff = A - B - Bin (two's complement).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Bin", "width": 1}], "outputs": [{"name": "Diff", "width": "N"}, {"name": "Bout", "width": 1}]},
+    {"name": "AddSub", "summary": "Add when Sub=0, two's-complement subtract when Sub=1.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Sub", "width": 1}], "outputs": [{"name": "R", "width": "N"}, {"name": "Cout", "width": 1}]},
+    {"name": "Incrementer", "summary": "A + 1.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": "N"}, {"name": "Cout", "width": 1}]},
+    {"name": "Decrementer", "summary": "A - 1; Bout flags underflow at A = 0.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": "N"}, {"name": "Bout", "width": 1}]},
+    {"name": "Negate", "summary": "Two's-complement negation: O = ~A + 1.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "O", "width": "N"}]},
+    {"name": "EqComparator", "summary": "Equality comparator: Eq = (A == B).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "Eq", "width": 1}], "stdlib_seed": true},
+    {"name": "MagComparator", "summary": "Unsigned magnitude comparator: Lt / Eq / Gt.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "Lt", "width": 1}, {"name": "Eq", "width": 1}, {"name": "Gt", "width": 1}], "stdlib_seed": true},
+    {"name": "ArrayMultiplier", "summary": "Unsigned N x N array multiplier; product width 2N.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "P", "width": "2N"}]},
+    {"name": "Divider", "summary": "Restoring unsigned divider: Q = A / B, R = A mod B (B != 0).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "Q", "width": "N"}, {"name": "R", "width": "N"}]},
+    {"name": "ALU", "summary": "8-op arithmetic-logic unit with carry and zero flags.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}, {"name": "Op", "width": 3}], "outputs": [{"name": "Y", "width": "N"}, {"name": "Cout", "width": 1}, {"name": "Zero", "width": 1}], "stdlib_seed": true}
+  ]
+}

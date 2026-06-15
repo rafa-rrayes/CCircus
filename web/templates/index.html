@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Step right up to the <em>Circuit&nbsp;Circus</em></h1>
+  <p class="lede">{{ intro }}</p>
+  <div class="install-hint">
+    <code>shdl add arith</code>
+    <span class="hint-note">then <code>use arith::{RippleAdder};</code></span>
+  </div>
+</section>
+
+<section>
+  <h2 class="section-head">The standard library
+    <span class="count">{{ libraries|length }} libraries in dependency order</span>
+  </h2>
+  <div class="lib-grid">
+    {% for lib in libraries %}
+    <a class="lib-card {% if not lib.published %}lib-planned{% endif %}"
+       href="/library/{{ lib.name }}">
+      <div class="lib-card-top">
+        <span class="lib-num">{{ "%02d"|format(lib.number) }}</span>
+        <span class="lib-name">{{ lib.name }}</span>
+        {% if lib.published %}
+          <span class="badge badge-live">{{ lib.published_count }} live</span>
+        {% else %}
+          <span class="badge badge-planned">planned</span>
+        {% endif %}
+      </div>
+      <p class="lib-blurb">{{ lib.blurb|md_inline }}</p>
+      <div class="lib-card-foot">
+        <span>{{ lib.circuits|length }} circuits</span>
+        {% if lib.depends_on %}
+          <span class="deps">↳ {{ lib.depends_on|join(", ") }}</span>
+        {% else %}
+          <span class="deps">↳ primitives</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

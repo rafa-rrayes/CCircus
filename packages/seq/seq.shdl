@@ -1,0 +1,468 @@
+"""
+seq — latches, flip-flops, registers, and counters.
+
+Where feedback becomes memory. Every memory element is a loop of ordinary
+gates whose `init` block seeds a fixed point, so traces are deterministic
+from cycle 0 (shdl.md §11.2). The two structural rules that bite:
+
+  * A seeded feedback loop must OWN every gate in it — `init` can only name
+    this component's own gate outputs — so the primitive latches here are
+    built from raw AND/OR/NOT, never from a composite. (The internal NOT of a
+    composite NOR would be an unseeded net and the loop would oscillate.)
+  * Everything above a latch is built by composing INSTANCES of these
+    primitives; the instance seeds carry through flattening, so a register or
+    counter needs no `init` of its own.
+
+Bit 1 is the LSB; buses are 1-indexed. Clocked parts are rising-edge
+master-slave flip-flops, so a clock is driven 0->1 with `step`s between edges.
+"""
+
+# =========================================================================
+# Latches — raw cross-coupled gates with a fully seeded fixed point.
+# =========================================================================
+
+# --- SR latch (NOR cross-coupled, active-high) ---------------------------
+# Hold at S=R=0. Q=0, Qn=1 is the seeded fixed point (matches srLatch.shdl).
+component SrLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;     # NOR #1, owned by the latch
+    o2: OR;  i2: NOT;     # NOR #2
+
+    init {
+        o1.O = 1;   # OR(R=0, Qn=1)
+        i1.O = 0;   # Q  = 0
+        o2.O = 0;   # OR(S=0, Q=0)
+        i2.O = 1;   # Qn = 1
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+
+# --- SR latch (NAND cross-coupled, active-low) ---------------------------
+# Q = NAND(S, Qn), Qn = NAND(R, Q). Inputs are active-LOW: S=0 sets,
+# R=0 resets, S=R=1 holds. Each NAND is owned as AND then NOT.
+# Hold at S=R=1: Q=0, Qn=1. NAND(1,1)=0=Q; NAND(1,0)=1=Qn.
+component SrLatchNand(S, R) -> (Q, Qn) {
+    a1: AND;  n1: NOT;    # NAND #1 -> Q
+    a2: AND;  n2: NOT;    # NAND #2 -> Qn
+
+    init {
+        a1.O = 1;   # AND(S=1, Qn=1)
+        n1.O = 0;   # Q  = NAND = 0
+        a2.O = 0;   # AND(R=1, Q=0)
+        n2.O = 1;   # Qn = NAND = 1
+    }
+
+    connect {
+        S -> a1.A;  n2.O -> a1.B;  a1.O -> n1.A;  n1.O -> Q;
+        R -> a2.A;  n1.O -> a2.B;  a2.O -> n2.A;  n2.O -> Qn;
+    }
+}
+
+# --- Gated SR latch ------------------------------------------------------
+# A NOR SR latch whose S/R are gated by EN. While EN=0 the latch holds.
+# Owns every gate (gating ANDs + the latch loop), so it is one seeded unit.
+component GatedSrLatch(S, R, EN) -> (Q, Qn) {
+    gS: AND;  gR: AND;        # S' = S&EN, R' = R&EN (combinational, not in loop)
+    o1: OR;   i1: NOT;        # NOR #1
+    o2: OR;   i2: NOT;        # NOR #2
+
+    init {
+        o1.O = 1;   i1.O = 0;     # Q  = 0
+        o2.O = 0;   i2.O = 1;     # Qn = 1
+    }
+
+    connect {
+        S -> gS.A;  EN -> gS.B;
+        R -> gR.A;  EN -> gR.B;
+
+        gR.O -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        gS.O -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+
+# --- D latch (transparent / level-sensitive) -----------------------------
+# While EN=1, Q follows D; while EN=0, Q holds. Composes an SrLatch instance
+# (its seed carries through flattening) plus combinational steering logic.
+component DLatch(D, EN) -> (Q, Qn) {
+    inv:   NOT;
+    gSet:  AND;        # S = D AND EN
+    gRst:  AND;        # R = (NOT D) AND EN
+    latch: SrLatch;
+
+    connect {
+        D -> inv.A;
+
+        D     -> gSet.A;   EN -> gSet.B;
+        inv.O -> gRst.A;   EN -> gRst.B;
+
+        gSet.O -> latch.S;
+        gRst.O -> latch.R;
+
+        latch.Q  -> Q;
+        latch.Qn -> Qn;
+    }
+}
+
+# =========================================================================
+# Flip-flops — edge-triggered, from master-slave D latch pairs.
+# =========================================================================
+
+# --- D flip-flop (rising-edge master-slave) ------------------------------
+# Master tracks D while Clk=0 (EN = NOT Clk); slave latches it on the
+# rising edge (EN = Clk). Q updates once per 0->1 transition.
+component DFlipFlop(D, Clk) -> (Q, Qn) {
+    cInv:   NOT;
+    master: DLatch;    # transparent while Clk = 0
+    slave:  DLatch;    # transparent while Clk = 1
+
+    connect {
+        Clk -> cInv.A;
+
+        D       -> master.D;
+        cInv.O  -> master.EN;
+
+        master.Q -> slave.D;
+        Clk      -> slave.EN;
+
+        slave.Q  -> Q;
+        slave.Qn -> Qn;
+    }
+}
+
+# --- JK flip-flop --------------------------------------------------------
+# Edge-triggered. Next-state D = (J AND NOT Q) OR (NOT K AND Q):
+#   J=0,K=0 hold; J=1,K=0 set; J=0,K=1 reset; J=1,K=1 toggle.
+# Q is fed back from the flip-flop's own output (one edge per Clk pulse).
+component JkFlipFlop(J, K, Clk) -> (Q, Qn) {
+    kInv:  NOT;        # NOT K
+    jq:    AND;        # J AND Qn   (set term)
+    kq:    AND;        # NOT K AND Q (hold term)
+    dOr:   OR;         # D = jq OR kq
+    ff:    DFlipFlop;
+
+    connect {
+        K -> kInv.A;
+
+        J        -> jq.A;   ff.Qn -> jq.B;
+        kInv.O   -> kq.A;   ff.Q  -> kq.B;
+
+        jq.O -> dOr.A;  kq.O -> dOr.B;
+
+        dOr.O -> ff.D;
+        Clk   -> ff.Clk;
+
+        ff.Q  -> Q;
+        ff.Qn -> Qn;
+    }
+}
+
+# --- T flip-flop ---------------------------------------------------------
+# Toggle on each rising edge when T=1, hold when T=0.
+# D = T XOR Q, fed back from the flip-flop's own Q.
+component TFlipFlop(T, Clk) -> (Q, Qn) {
+    x:  XOR;           # D = T XOR Q
+    ff: DFlipFlop;
+
+    connect {
+        T    -> x.A;   ff.Q -> x.B;
+        x.O  -> ff.D;
+        Clk  -> ff.Clk;
+        ff.Q  -> Q;
+        ff.Qn -> Qn;
+    }
+}
+
+# =========================================================================
+# Registers — banks of flip-flops / latches.
+# =========================================================================
+
+# --- N-bit edge-triggered register ---------------------------------------
+# N D flip-flops sharing a clock; loads D on every rising edge.
+component Register<N = 8>(D[N], Clk) -> (Q[N]) {
+    >i[N]{ bit{i}: DFlipFlop; }
+
+    connect {
+        >i[N]{
+            D[{i}]     -> bit{i}.D;
+            Clk        -> bit{i}.Clk;
+            bit{i}.Q   -> Q[{i}];
+        }
+    }
+}
+
+# --- N-bit register with load enable (transparent latches) ---------------
+# While LD is high the register tracks D; when LD drops it holds.
+# Level-sensitive D latches, matching examples/registerN.shdl.
+component RegisterEn<N = 8>(D[N], LD) -> (Q[N]) {
+    >i[N]{ bit{i}: DLatch; }
+
+    connect {
+        >i[N]{
+            D[{i}]   -> bit{i}.D;
+            LD       -> bit{i}.EN;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# =========================================================================
+# Shift registers.
+# =========================================================================
+
+# --- Serial-in / serial-out shift register -------------------------------
+# N D-FF stages in a chain; In enters stage 1, Out taps stage N. Each rising
+# edge shifts the chain by one. Output appears after N clock edges.
+component ShiftRegSISO<N = 8>(In, Clk) -> (Out) {
+    >i[N]{ bit{i}: DFlipFlop; }
+
+    connect {
+        >i[N]{
+            when {i == 1} { In           -> bit{i}.D; }
+            else          { bit{i-1}.Q   -> bit{i}.D; }
+            Clk -> bit{i}.Clk;
+        }
+        bit{N}.Q -> Out;
+    }
+}
+
+# --- Serial-in / parallel-out shift register -----------------------------
+# Same chain, but every stage is exposed. Q[1] is the newest bit.
+component ShiftRegSIPO<N = 8>(In, Clk) -> (Q[N]) {
+    >i[N]{ bit{i}: DFlipFlop; }
+
+    connect {
+        >i[N]{
+            when {i == 1} { In         -> bit{i}.D; }
+            else          { bit{i-1}.Q -> bit{i}.D; }
+            Clk      -> bit{i}.Clk;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# --- Parallel-in / serial-out shift register -----------------------------
+# When LD=1 each stage loads D in parallel; when LD=0 it shifts toward Out.
+# A 2:1 mux on each stage's D selects load (D[i]) vs shift (previous Q).
+# Stage 1 shifts in 0. Out taps stage N.
+component ShiftRegPISO<N = 8>(D[N], LD, Clk) -> (Out) {
+    ZERO = 0;
+    >i[N]{
+        bit{i}: DFlipFlop;
+        ldInv{i}: NOT;  gLoad{i}: AND;  gShift{i}: AND;  mux{i}: OR;
+    }
+
+    connect {
+        >i[N]{
+            LD -> ldInv{i}.A;
+            # load path: D[i] when LD=1
+            D[{i}]    -> gLoad{i}.A;   LD         -> gLoad{i}.B;
+            # shift path: previous stage (or 0) when LD=0
+            when {i == 1} { ZERO        -> gShift{i}.A; }   # stage 1 shifts in 0
+            else          { bit{i-1}.Q  -> gShift{i}.A; }
+            ldInv{i}.O -> gShift{i}.B;
+            gLoad{i}.O -> mux{i}.A;   gShift{i}.O -> mux{i}.B;
+            mux{i}.O   -> bit{i}.D;
+            Clk        -> bit{i}.Clk;
+        }
+        bit{N}.Q -> Out;
+    }
+}
+
+# --- Universal shift register --------------------------------------------
+# Mode[2] selects per rising edge: 0=hold, 1=shift right, 2=shift left,
+# 3=parallel load. Each stage's next D is a 4:1 mux over
+# {hold=Q, shiftR=neighbor-above or R, shiftL=neighbor-below or L, load=D}.
+# Bit 1 is the LSB. "Shift right" moves toward the LSB (high->low); the new
+# high bit comes from serial input R. "Shift left" moves toward the MSB;
+# the new low bit comes from serial input L.
+component UniversalShift<N = 8>(D[N], L, R, Mode[2], Clk) -> (Q[N]) {
+    >i[N]{
+        bit{i}: DFlipFlop;
+        # 4:1 mux built from a Mode[1]/Mode[2] decode and AND-OR.
+        # sources: s0 = hold, s1 = shiftR, s2 = shiftL, s3 = load
+        nM1{i}: NOT;  nM2{i}: NOT;
+        sel0{i}: AND; sel1{i}: AND; sel2{i}: AND; sel3{i}: AND;   # one-hot selects
+        g0{i}: AND;   g1{i}: AND;   g2{i}: AND;   g3{i}: AND;
+        or01{i}: OR;  or23{i}: OR;  orOut{i}: OR;
+    }
+
+    connect {
+        >i[N]{
+            Mode[1] -> nM1{i}.A;
+            Mode[2] -> nM2{i}.A;
+            # one-hot decode of Mode[2:1] (Mode[1]=low bit, Mode[2]=high bit)
+            nM2{i}.O -> sel0{i}.A;  nM1{i}.O -> sel0{i}.B;   # Mode==0 hold
+            nM2{i}.O -> sel1{i}.A;  Mode[1]  -> sel1{i}.B;   # Mode==1 shift right
+            Mode[2]  -> sel2{i}.A;  nM1{i}.O -> sel2{i}.B;   # Mode==2 shift left
+            Mode[2]  -> sel3{i}.A;  Mode[1]  -> sel3{i}.B;   # Mode==3 load
+
+            # hold source = this stage's current Q
+            bit{i}.Q -> g0{i}.A;   sel0{i}.O -> g0{i}.B;
+
+            # shift-right source = stage i+1 (toward MSB), or R at the top
+            when {i == N} { R         -> g1{i}.A; }
+            else          { bit{i+1}.Q -> g1{i}.A; }
+            sel1{i}.O -> g1{i}.B;
+
+            # shift-left source = stage i-1 (toward LSB), or L at the bottom
+            when {i == 1} { L          -> g2{i}.A; }
+            else          { bit{i-1}.Q -> g2{i}.A; }
+            sel2{i}.O -> g2{i}.B;
+
+            # load source = D[i]
+            D[{i}] -> g3{i}.A;   sel3{i}.O -> g3{i}.B;
+
+            g0{i}.O -> or01{i}.A;  g1{i}.O -> or01{i}.B;
+            g2{i}.O -> or23{i}.A;  g3{i}.O -> or23{i}.B;
+            or01{i}.O -> orOut{i}.A;  or23{i}.O -> orOut{i}.B;
+            orOut{i}.O -> bit{i}.D;
+
+            Clk      -> bit{i}.Clk;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# =========================================================================
+# Counters.
+# =========================================================================
+
+# --- Ripple (asynchronous) counter ---------------------------------------
+# A chain of toggle flip-flops, each clocked by the previous stage's Q.
+# Stage 1 toggles on the external clock; stage i toggles when stage i-1
+# falls. Counts up modulo 2^N. Seeds to 0.
+component RippleCounter<N = 4>(Clk) -> (Q[N]) {
+    ONE = 1;
+    >i[N]{ t{i}: TFlipFlop; }
+
+    connect {
+        >i[N]{
+            ONE -> t{i}.T;                            # always toggle on this stage's clock
+            when {i == 1} { Clk       -> t{i}.Clk; }  # external clock
+            else          { t{i-1}.Qn -> t{i}.Clk; }  # ripple on prev stage's FALL
+                                                      # (Qn rises 0->1 when Q falls 1->0)
+            t{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# --- Synchronous up counter ----------------------------------------------
+# All T flip-flops share the clock. Stage i toggles only when EN and every
+# lower stage is 1 (carry chain). Counts up modulo 2^N when EN=1; holds when
+# EN=0. carry{i} = EN AND Q[1] AND ... AND Q[i-1].
+component SyncCounter<N = 4>(Clk, EN) -> (Q[N]) {
+    >i[N]{ t{i}: TFlipFlop; }
+    >i[2:N]{ carry{i}: AND; }            # running AND of EN and lower bits
+
+    connect {
+        # stage 1 toggles whenever EN
+        EN -> t1.T;
+        Clk -> t1.Clk;
+        t1.Q -> Q[1];
+
+        >i[2:N]{
+            # carry{i} = carry{i-1-as-source} AND Q[i-1]
+            when {i == 2} { EN           -> carry{i}.A; }
+            else          { carry{i-1}.O -> carry{i}.A; }
+            t{i-1}.Q -> carry{i}.B;
+            carry{i}.O -> t{i}.T;
+            Clk -> t{i}.Clk;
+            t{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# --- Up/down counter -----------------------------------------------------
+# Synchronous. Up=1 counts up, Up=0 counts down. Stage i toggles when all
+# lower stages match the direction: up needs lower bits all 1, down needs
+# them all 0. dir{i-1} = (Up==lowerbit) chained. Toggle stage 1 every clock.
+component UpDownCounter<N = 4>(Clk, Up) -> (Q[N]) {
+    ONE = 1;
+    >i[N]{ t{i}: TFlipFlop; }
+    >i[N]{ nq{i}: NOT; }                 # NOT Q[i], for the down-carry term
+    >i[N]{ term{i}: OR; }                # per-stage "this bit agrees with dir"
+    >i[N]{ nUp{i}: NOT; }                # NOT Up
+    >i[N]{ upHi{i}: AND;  dnLo{i}: AND; }
+    >i[2:N]{ carry{i}: AND; }
+
+    connect {
+        # term{i} = (Up AND Q[i]) OR (NOT Up AND NOT Q[i])
+        #         = 1 when bit i is in the "ready to carry" state for the dir.
+        >i[N]{
+            Up    -> upHi{i}.A;   t{i}.Q -> upHi{i}.B;
+            t{i}.Q -> nq{i}.A;
+            Up    -> nUp{i}.A;
+            nUp{i}.O -> dnLo{i}.A;   nq{i}.O -> dnLo{i}.B;
+            upHi{i}.O -> term{i}.A;  dnLo{i}.O -> term{i}.B;
+        }
+
+        # stage 1 always toggles
+        ONE -> t1.T;
+        Clk -> t1.Clk;
+        t1.Q -> Q[1];
+
+        >i[2:N]{
+            # carry{i} = AND of term{1..i-1}; carry{2} = term1 AND term1 = term1.
+            when {i == 2} { term{i-1}.O  -> carry{i}.A; }
+            else          { carry{i-1}.O -> carry{i}.A; }
+            term{i-1}.O -> carry{i}.B;
+            carry{i}.O -> t{i}.T;
+            Clk -> t{i}.Clk;
+            t{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# --- Ring counter (one-hot rotating, self-starting) ----------------------
+# N D flip-flops with exactly one hot bit that rotates each edge. A plain
+# DFF ring powers up all-zero (a dead state), so this uses the classic
+# self-correcting feedback: D[1] = NOR(Q[1..N-1]) and D[i] = Q[i-1]. From
+# all-zero NOR(...) = 1 seeds the single hot bit, which then rotates and the
+# NOR keeps it one-hot. No init needed — it self-starts from the DFF seeds.
+component RingCounter<N = 4>(Clk) -> (Q[N]) {
+    >i[N]{ bit{i}: DFlipFlop; }
+    >i[2:N-1]{ nor{i}: OR; }            # OR-reduction of Q[1..N-1]
+    norInv: NOT;                        # ... then invert -> NOR
+
+    connect {
+        # D[1] = NOR(Q[1..N-1]): OR-reduce bits 1..N-1, then invert.
+        when {N == 2} { bit1.Q -> norInv.A; }       # NOR of just Q[1]
+        else {
+            >i[2:N-1]{
+                when {i == 2} { bit1.Q     -> nor{i}.A; }
+                else          { nor{i-1}.O -> nor{i}.A; }
+                bit{i}.Q -> nor{i}.B;
+            }
+            nor{N-1}.O -> norInv.A;
+        }
+        norInv.O -> bit1.D;
+
+        >i[2:N]{ bit{i-1}.Q -> bit{i}.D; }    # rotate: stage i-1 -> stage i
+
+        >i[N]{
+            Clk      -> bit{i}.Clk;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}
+
+# --- Johnson (twisted-ring) counter --------------------------------------
+# Like a ring, but the feedback into stage 1 is the INVERTED last stage.
+# Cycles through 2N states. Powers up all-zero (a valid Johnson state).
+component JohnsonCounter<N = 4>(Clk) -> (Q[N]) {
+    >i[N]{ bit{i}: DFlipFlop; }
+
+    connect {
+        bit{N}.Qn -> bit1.D;           # twist: feed back the inverted last stage
+        >i[2:N]{
+            bit{i-1}.Q -> bit{i}.D;
+        }
+        >i[N]{
+            Clk      -> bit{i}.Clk;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}

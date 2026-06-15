@@ -1,0 +1,136 @@
+{
+  "test_format": 1,
+  "package": "arith",
+  "cases": [
+    { "component": "HalfAdder", "steps": 8, "vectors": [
+      {"in": {"A": 0, "B": 0}, "out": {"Sum": 0, "Cout": 0}},
+      {"in": {"A": 1, "B": 0}, "out": {"Sum": 1, "Cout": 0}},
+      {"in": {"A": 0, "B": 1}, "out": {"Sum": 1, "Cout": 0}},
+      {"in": {"A": 1, "B": 1}, "out": {"Sum": 0, "Cout": 1}}
+    ]},
+    { "component": "FullAdder", "steps": 8, "vectors": [
+      {"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"Sum": 0, "Cout": 0}},
+      {"in": {"A": 1, "B": 0, "Cin": 0}, "out": {"Sum": 1, "Cout": 0}},
+      {"in": {"A": 1, "B": 1, "Cin": 0}, "out": {"Sum": 0, "Cout": 1}},
+      {"in": {"A": 1, "B": 0, "Cin": 1}, "out": {"Sum": 0, "Cout": 1}},
+      {"in": {"A": 1, "B": 1, "Cin": 1}, "out": {"Sum": 1, "Cout": 1}}
+    ]},
+    { "component": "RippleAdder", "steps": 64, "vectors": [
+      {"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"Sum": 0, "Cout": 0}},
+      {"in": {"A": 5, "B": 9, "Cin": 0}, "out": {"Sum": 14, "Cout": 0}},
+      {"in": {"A": 5, "B": 9, "Cin": 1}, "out": {"Sum": 15, "Cout": 0}},
+      {"in": {"A": 200, "B": 100, "Cin": 0}, "out": {"Sum": 44, "Cout": 1}},
+      {"in": {"A": 255, "B": 1, "Cin": 0}, "out": {"Sum": 0, "Cout": 1}},
+      {"in": {"A": 255, "B": 255, "Cin": 1}, "out": {"Sum": 255, "Cout": 1}}
+    ]},
+    { "component": "CarryLookahead", "steps": 64, "vectors": [
+      {"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"Sum": 0, "Cout": 0}},
+      {"in": {"A": 5, "B": 9, "Cin": 0}, "out": {"Sum": 14, "Cout": 0}},
+      {"in": {"A": 200, "B": 100, "Cin": 0}, "out": {"Sum": 44, "Cout": 1}},
+      {"in": {"A": 255, "B": 0, "Cin": 1}, "out": {"Sum": 0, "Cout": 1}},
+      {"in": {"A": 170, "B": 85, "Cin": 0}, "out": {"Sum": 255, "Cout": 0}},
+      {"in": {"A": 255, "B": 255, "Cin": 1}, "out": {"Sum": 255, "Cout": 1}}
+    ]},
+    { "component": "CarrySelect", "steps": 128, "vectors": [
+      {"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"Sum": 0, "Cout": 0}},
+      {"in": {"A": 1000, "B": 2000, "Cin": 0}, "out": {"Sum": 3000, "Cout": 0}},
+      {"in": {"A": 65535, "B": 1, "Cin": 0}, "out": {"Sum": 0, "Cout": 1}},
+      {"in": {"A": 65535, "B": 65535, "Cin": 1}, "out": {"Sum": 65535, "Cout": 1}},
+      {"in": {"A": 40000, "B": 30000, "Cin": 0}, "out": {"Sum": 4464, "Cout": 1}},
+      {"in": {"A": 255, "B": 1, "Cin": 0}, "out": {"Sum": 256, "Cout": 0}}
+    ]},
+    { "component": "CarrySave", "steps": 16, "vectors": [
+      {"in": {"A": 0, "B": 0, "C": 0}, "out": {"S": 0, "Cy": 0}},
+      {"in": {"A": 255, "B": 0, "C": 0}, "out": {"S": 255, "Cy": 0}},
+      {"in": {"A": 255, "B": 255, "C": 0}, "out": {"S": 0, "Cy": 255}},
+      {"in": {"A": 255, "B": 255, "C": 255}, "out": {"S": 255, "Cy": 255}},
+      {"in": {"A": 170, "B": 85, "C": 255}, "out": {"S": 0, "Cy": 255}},
+      {"in": {"A": 6, "B": 5, "C": 3}, "out": {"S": 0, "Cy": 7}}
+    ]},
+    { "component": "Subtractor", "steps": 64, "vectors": [
+      {"in": {"A": 10, "B": 3, "Bin": 0}, "out": {"Diff": 7, "Bout": 0}},
+      {"in": {"A": 10, "B": 3, "Bin": 1}, "out": {"Diff": 6, "Bout": 0}},
+      {"in": {"A": 0, "B": 0, "Bin": 0}, "out": {"Diff": 0, "Bout": 0}},
+      {"in": {"A": 0, "B": 1, "Bin": 0}, "out": {"Diff": 255, "Bout": 1}},
+      {"in": {"A": 5, "B": 9, "Bin": 0}, "out": {"Diff": 252, "Bout": 1}},
+      {"in": {"A": 255, "B": 255, "Bin": 1}, "out": {"Diff": 255, "Bout": 1}}
+    ]},
+    { "component": "AddSub", "steps": 64, "vectors": [
+      {"in": {"A": 5, "B": 9, "Sub": 0}, "out": {"R": 14, "Cout": 0}},
+      {"in": {"A": 200, "B": 100, "Sub": 0}, "out": {"R": 44, "Cout": 1}},
+      {"in": {"A": 10, "B": 3, "Sub": 1}, "out": {"R": 7, "Cout": 1}},
+      {"in": {"A": 5, "B": 9, "Sub": 1}, "out": {"R": 252, "Cout": 0}},
+      {"in": {"A": 0, "B": 0, "Sub": 1}, "out": {"R": 0, "Cout": 1}},
+      {"in": {"A": 7, "B": 7, "Sub": 1}, "out": {"R": 0, "Cout": 1}}
+    ]},
+    { "component": "Incrementer", "steps": 64, "vectors": [
+      {"in": {"A": 0}, "out": {"O": 1, "Cout": 0}},
+      {"in": {"A": 41}, "out": {"O": 42, "Cout": 0}},
+      {"in": {"A": 254}, "out": {"O": 255, "Cout": 0}},
+      {"in": {"A": 255}, "out": {"O": 0, "Cout": 1}}
+    ]},
+    { "component": "Decrementer", "steps": 64, "vectors": [
+      {"in": {"A": 1}, "out": {"O": 0, "Bout": 0}},
+      {"in": {"A": 42}, "out": {"O": 41, "Bout": 0}},
+      {"in": {"A": 255}, "out": {"O": 254, "Bout": 0}},
+      {"in": {"A": 0}, "out": {"O": 255, "Bout": 1}}
+    ]},
+    { "component": "Negate", "steps": 64, "vectors": [
+      {"in": {"A": 0}, "out": {"O": 0}},
+      {"in": {"A": 1}, "out": {"O": 255}},
+      {"in": {"A": 5}, "out": {"O": 251}},
+      {"in": {"A": 128}, "out": {"O": 128}},
+      {"in": {"A": 255}, "out": {"O": 1}}
+    ]},
+    { "component": "EqComparator", "steps": 32, "vectors": [
+      {"in": {"A": 0, "B": 0}, "out": {"Eq": 1}},
+      {"in": {"A": 170, "B": 170}, "out": {"Eq": 1}},
+      {"in": {"A": 255, "B": 255}, "out": {"Eq": 1}},
+      {"in": {"A": 170, "B": 85}, "out": {"Eq": 0}},
+      {"in": {"A": 0, "B": 1}, "out": {"Eq": 0}}
+    ]},
+    { "component": "MagComparator", "steps": 64, "vectors": [
+      {"in": {"A": 5, "B": 9}, "out": {"Lt": 1, "Eq": 0, "Gt": 0}},
+      {"in": {"A": 9, "B": 5}, "out": {"Lt": 0, "Eq": 0, "Gt": 1}},
+      {"in": {"A": 42, "B": 42}, "out": {"Lt": 0, "Eq": 1, "Gt": 0}},
+      {"in": {"A": 0, "B": 255}, "out": {"Lt": 1, "Eq": 0, "Gt": 0}},
+      {"in": {"A": 255, "B": 0}, "out": {"Lt": 0, "Eq": 0, "Gt": 1}},
+      {"in": {"A": 0, "B": 0}, "out": {"Lt": 0, "Eq": 1, "Gt": 0}}
+    ]},
+    { "component": "ArrayMultiplier", "steps": 256, "vectors": [
+      {"in": {"A": 0, "B": 0}, "out": {"P": 0}},
+      {"in": {"A": 0, "B": 200}, "out": {"P": 0}},
+      {"in": {"A": 1, "B": 200}, "out": {"P": 200}},
+      {"in": {"A": 12, "B": 12}, "out": {"P": 144}},
+      {"in": {"A": 15, "B": 17}, "out": {"P": 255}},
+      {"in": {"A": 200, "B": 100}, "out": {"P": 20000}},
+      {"in": {"A": 255, "B": 255}, "out": {"P": 65025}}
+    ]},
+    { "component": "Divider", "steps": 256, "vectors": [
+      {"in": {"A": 0, "B": 1}, "out": {"Q": 0, "R": 0}},
+      {"in": {"A": 100, "B": 1}, "out": {"Q": 100, "R": 0}},
+      {"in": {"A": 100, "B": 7}, "out": {"Q": 14, "R": 2}},
+      {"in": {"A": 144, "B": 12}, "out": {"Q": 12, "R": 0}},
+      {"in": {"A": 255, "B": 16}, "out": {"Q": 15, "R": 15}},
+      {"in": {"A": 7, "B": 9}, "out": {"Q": 0, "R": 7}},
+      {"in": {"A": 255, "B": 255}, "out": {"Q": 1, "R": 0}}
+    ]},
+    { "component": "ALU", "steps": 96, "vectors": [
+      {"in": {"A": 204, "B": 170, "Op": 0}, "out": {"Y": 136, "Zero": 0}},
+      {"in": {"A": 204, "B": 170, "Op": 1}, "out": {"Y": 238, "Zero": 0}},
+      {"in": {"A": 204, "B": 170, "Op": 2}, "out": {"Y": 102, "Zero": 0}},
+      {"in": {"A": 170, "B": 85, "Op": 0}, "out": {"Y": 0, "Zero": 1}},
+      {"in": {"A": 204, "B": 0, "Op": 3}, "out": {"Y": 51, "Zero": 0}},
+      {"in": {"A": 255, "B": 0, "Op": 3}, "out": {"Y": 0, "Zero": 1}},
+      {"in": {"A": 200, "B": 100, "Op": 4}, "out": {"Y": 44, "Cout": 1, "Zero": 0}},
+      {"in": {"A": 5, "B": 9, "Op": 4}, "out": {"Y": 14, "Cout": 0, "Zero": 0}},
+      {"in": {"A": 10, "B": 3, "Op": 5}, "out": {"Y": 7, "Cout": 1, "Zero": 0}},
+      {"in": {"A": 5, "B": 9, "Op": 5}, "out": {"Y": 252, "Cout": 0, "Zero": 0}},
+      {"in": {"A": 7, "B": 7, "Op": 5}, "out": {"Y": 0, "Cout": 1, "Zero": 1}},
+      {"in": {"A": 41, "B": 0, "Op": 6}, "out": {"Y": 42, "Cout": 0, "Zero": 0}},
+      {"in": {"A": 255, "B": 0, "Op": 6}, "out": {"Y": 0, "Cout": 1, "Zero": 1}},
+      {"in": {"A": 42, "B": 0, "Op": 7}, "out": {"Y": 41, "Cout": 1, "Zero": 0}},
+      {"in": {"A": 0, "B": 0, "Op": 7}, "out": {"Y": 255, "Cout": 0, "Zero": 0}}
+    ]}
+  ]
+}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Circuit Circus{% endblock %} · Circuit Circus</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">◐◑</span>
+        <span class="brand-name">Circuit&nbsp;Circus</span>
+        <span class="brand-sub">the SHDL circuit index</span>
+      </a>
+      <form class="search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search circuits…"
+               value="{{ q|default('') }}" autocomplete="off" aria-label="Search circuits">
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span class="big-top">⛺</span>
+      {{ stats.libraries }} libraries · {{ stats.circuits }} circuits ·
+      {{ stats.published }} published · plain <code>.shdl</code>, verified gate-by-gate.
+      <a href="/api/packages">JSON&nbsp;API</a>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,103 @@
+"""
+shift — logical/arithmetic shifters, rotators, and a barrel network.
+
+Pure combinational mux networks: a variable shift is a log-depth barrel of
+three stages, stage k (controlled by Sh[k]) selecting between "no shift" and
+"shift by 2^(k-1)" through a mux::BusMux2 cell — amounts 1, 2, 4 for the three
+Sh bits. The shifted operand at each stage is pure wiring (a slice/concat with
+a zero or sign fill), so the gates live entirely in the selecting muxes. Bit 1
+is the LSB; Sh is the shift amount as an integer. Default N=8 (Sh is 3 bits =
+log2 N). No `top` marker.
+"""
+
+use mux::{BusMux2};
+
+# --- logical left shift ---------------------------------------------------
+# Shift left by s: high bits keep A[1 .. N-s], the low s bits become 0.
+component ShiftLeft<N = 8>(A[N], Sh[3]) -> (O[N]) {
+    gnd: __GND__;
+    s1: BusMux2<N>;   s2: BusMux2<N>;   s4: BusMux2<N>;
+    connect {
+        A -> s1.A;        { A[1:N-1],    1{gnd.O} } -> s1.B;    Sh[1] -> s1.S;
+        s1.O -> s2.A;     { s1.O[1:N-2], 2{gnd.O} } -> s2.B;    Sh[2] -> s2.S;
+        s2.O -> s4.A;     { s2.O[1:N-4], 4{gnd.O} } -> s4.B;    Sh[3] -> s4.S;
+        s4.O -> O;
+    }
+}
+
+# --- logical right shift ---------------------------------------------------
+# Shift right by s: low bits keep A[s+1 .. N], the high s bits become 0.
+component ShiftRight<N = 8>(A[N], Sh[3]) -> (O[N]) {
+    gnd: __GND__;
+    s1: BusMux2<N>;   s2: BusMux2<N>;   s4: BusMux2<N>;
+    connect {
+        A -> s1.A;        { 1{gnd.O}, A[2:N]    } -> s1.B;    Sh[1] -> s1.S;
+        s1.O -> s2.A;     { 2{gnd.O}, s1.O[3:N] } -> s2.B;    Sh[2] -> s2.S;
+        s2.O -> s4.A;     { 4{gnd.O}, s2.O[5:N] } -> s4.B;    Sh[3] -> s4.S;
+        s4.O -> O;
+    }
+}
+
+# --- arithmetic right shift ------------------------------------------------
+# Like ShiftRight, but the high s bits are filled with the current sign bit
+# (the MSB of the stage input), so a negative value stays negative.
+component ArithShiftR<N = 8>(A[N], Sh[3]) -> (O[N]) {
+    s1: BusMux2<N>;   s2: BusMux2<N>;   s4: BusMux2<N>;
+    connect {
+        A -> s1.A;        { 1{A[N]},    A[2:N]    } -> s1.B;    Sh[1] -> s1.S;
+        s1.O -> s2.A;     { 2{s1.O[N]}, s1.O[3:N] } -> s2.B;    Sh[2] -> s2.S;
+        s2.O -> s4.A;     { 4{s2.O[N]}, s2.O[5:N] } -> s4.B;    Sh[3] -> s4.S;
+        s4.O -> O;
+    }
+}
+
+# --- barrel shifter, either direction --------------------------------------
+# Compute a logical left and a logical right result, then pick on Dir
+# (Dir = 0 -> left, Dir = 1 -> right).
+component BarrelShifter<N = 8>(A[N], Sh[3], Dir) -> (O[N]) {
+    sl: ShiftLeft<N>;
+    sr: ShiftRight<N>;
+    pick: BusMux2<N>;
+    connect {
+        A -> sl.A;   Sh -> sl.Sh;
+        A -> sr.A;   Sh -> sr.Sh;
+        sl.O -> pick.A;   sr.O -> pick.B;   Dir -> pick.S;
+        pick.O -> O;
+    }
+}
+
+# --- variable rotate (left) ------------------------------------------------
+# Rotate left by s: the s bits shifted off the top wrap into the bottom.
+# rotl(x, s) = { x[1 .. N-s], x[N-s+1 .. N] }  (MSB-first concat).
+component BarrelRotator<N = 8>(A[N], Sh[3]) -> (O[N]) {
+    s1: BusMux2<N>;   s2: BusMux2<N>;   s4: BusMux2<N>;
+    connect {
+        A -> s1.A;        { A[1:N-1],    A[N:N]      } -> s1.B;    Sh[1] -> s1.S;
+        s1.O -> s2.A;     { s1.O[1:N-2], s1.O[N-1:N] } -> s2.B;    Sh[2] -> s2.S;
+        s2.O -> s4.A;     { s2.O[1:N-4], s2.O[N-3:N] } -> s4.B;    Sh[3] -> s4.S;
+        s4.O -> O;
+    }
+}
+
+# --- funnel shifter --------------------------------------------------------
+# Treat {Hi, Lo} as a 2N-bit window (Lo is the low half) and shift it right by
+# Sh, returning the low N bits:  O[i] = window[i + Sh].  A 2N-wide logical
+# right barrel, keeping bits 1..N.
+component FunnelShifter<N = 8>(Hi[N], Lo[N], Sh[3]) -> (O[N]) {
+    gnd: __GND__;
+    s1: BusMux2<2*N>;   s2: BusMux2<2*N>;   s4: BusMux2<2*N>;
+    connect {
+        { Hi, Lo } -> s1.A;   { 1{gnd.O}, Hi, Lo[2:N]   } -> s1.B;   Sh[1] -> s1.S;
+        s1.O -> s2.A;         { 2{gnd.O}, s1.O[3:2*N]   } -> s2.B;   Sh[2] -> s2.S;
+        s2.O -> s4.A;         { 4{gnd.O}, s2.O[5:2*N]   } -> s4.B;   Sh[3] -> s4.S;
+        s4.O[1:N] -> O;
+    }
+}
+
+# --- bit reversal ----------------------------------------------------------
+# Pure wiring: O[i] = A[N-i+1].  No gates.
+component BitReverse<N = 8>(A[N]) -> (O[N]) {
+    connect {
+        >i[N]{ A[{N - i + 1}] -> O[{i}]; }
+    }
+}

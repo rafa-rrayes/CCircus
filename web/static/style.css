@@ -1,0 +1,188 @@
+/* Circuit Circus — a clean big-top theme. Cream paper, circus red, brass gold. */
+:root {
+  --red:    #b3122a;
+  --red-dk: #7d0c1d;
+  --gold:   #d99a2b;
+  --gold-dk:#a9741a;
+  --ink:    #241b18;
+  --paper:  #fbf6ec;
+  --card:   #ffffff;
+  --line:   #e7ddc9;
+  --muted:  #7a6f63;
+  --live:   #2c7a3f;
+  --mono:   ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans:   system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.55;
+}
+.wrap { max-width: 1000px; margin: 0 auto; padding: 0 1.25rem; }
+a { color: var(--red); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--mono); font-size: 0.9em; }
+
+/* ---- top bar -------------------------------------------------------- */
+.topbar {
+  background: linear-gradient(180deg, var(--red) 0%, var(--red-dk) 100%);
+  border-bottom: 4px solid var(--gold);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding-top: .7rem; padding-bottom: .7rem; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: baseline; gap: .55rem; color: #fff; }
+.brand:hover { text-decoration: none; }
+.brand-mark { color: var(--gold); font-size: 1.3rem; letter-spacing: -2px; }
+.brand-name { font-weight: 800; font-size: 1.35rem; letter-spacing: .3px; }
+.brand-sub { color: #f4d9a8; font-size: .8rem; }
+.search { display: flex; gap: .4rem; }
+.search input {
+  font: inherit; padding: .45rem .7rem; border-radius: 6px;
+  border: 1px solid var(--gold-dk); min-width: 220px; background: #fffdf8;
+}
+.search button {
+  font: inherit; font-weight: 600; padding: .45rem .9rem; cursor: pointer;
+  border: none; border-radius: 6px; background: var(--gold); color: #3a2a08;
+}
+.search button:hover { background: #e9ab3e; }
+
+/* ---- generic layout ------------------------------------------------- */
+main.wrap { padding-top: 1.8rem; padding-bottom: 3rem; }
+h1 { font-size: 2rem; margin: .2rem 0 .5rem; letter-spacing: -.4px; }
+h1 em { color: var(--red); font-style: normal; }
+.section-head {
+  font-size: 1.15rem; margin: 2rem 0 .9rem; padding-bottom: .4rem;
+  border-bottom: 2px dashed var(--line); display: flex;
+  align-items: baseline; justify-content: space-between; gap: 1rem;
+}
+.section-head .count { font-size: .82rem; font-weight: 400; color: var(--muted); }
+.lede { font-size: 1.12rem; color: #4a3f37; max-width: 60ch; }
+.muted { color: var(--muted); }
+.crumbs { font-size: .85rem; color: var(--muted); margin-bottom: .6rem; }
+.crumbs span { color: var(--ink); font-weight: 600; }
+
+/* ---- hero ----------------------------------------------------------- */
+.hero {
+  background:
+    repeating-linear-gradient(135deg, #fff 0 22px, #fdf3e6 22px 44px);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 1.8rem 1.6rem; margin-bottom: 1.5rem;
+}
+.install-hint { margin-top: 1rem; }
+.install-hint > code {
+  background: var(--ink); color: #ffe9b8; padding: .5rem .8rem;
+  border-radius: 6px; font-size: 1rem; display: inline-block;
+}
+.hint-note { margin-left: .6rem; color: var(--muted); font-size: .9rem; }
+.hint-note code { color: var(--red-dk); }
+
+/* ---- library grid --------------------------------------------------- */
+.lib-grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.lib-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-top: 4px solid var(--red); border-radius: 10px; padding: 1rem 1.1rem;
+  color: var(--ink); transition: transform .08s ease, box-shadow .12s ease;
+}
+.lib-card:hover {
+  text-decoration: none; transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(125,12,29,.13);
+}
+.lib-planned { border-top-color: var(--gold-dk); opacity: .92; }
+.lib-card-top { display: flex; align-items: center; gap: .55rem; }
+.lib-num { font-family: var(--mono); color: var(--muted); font-size: .85rem; }
+.lib-name { font-weight: 800; font-size: 1.15rem; }
+.lib-blurb { margin: .55rem 0 .8rem; color: #4a3f37; font-size: .95rem; }
+.lib-card-foot {
+  display: flex; justify-content: space-between; font-size: .8rem;
+  color: var(--muted); border-top: 1px dashed var(--line); padding-top: .55rem;
+}
+.lib-card-foot .deps { font-family: var(--mono); }
+
+/* ---- badges & dots -------------------------------------------------- */
+.badge {
+  margin-left: auto; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; padding: .12rem .5rem; border-radius: 999px;
+}
+.badge-live { background: #e3f3e6; color: var(--live); border: 1px solid #b6ddbf; }
+.badge-planned { background: #fbeccd; color: var(--gold-dk); border: 1px solid #ecd29a; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.dot-live { background: var(--live); }
+.dot-planned { background: #d8c79c; }
+.seed { color: var(--gold-dk); font-weight: 700; }
+
+/* ---- library detail head ------------------------------------------- */
+.lib-head { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
+.lib-head-main { flex: 1 1 380px; }
+.lib-head-side { flex: 0 0 240px; }
+.install-block {
+  background: var(--ink); color: #ffe9b8; border-radius: 8px; padding: .7rem .85rem;
+  margin-bottom: 1rem;
+}
+.install-label { display: block; font-size: .68rem; text-transform: uppercase;
+  letter-spacing: 1px; color: #c8a96a; margin-bottom: .25rem; }
+.install-block code { color: #ffe9b8; font-size: 1rem; }
+dl.meta { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; font-size: .9rem; }
+dl.meta dt { color: var(--muted); }
+dl.meta dd { margin: 0; }
+
+/* ---- tables --------------------------------------------------------- */
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+.circuit-table th, .circuit-table td,
+.vector-table th, .vector-table td {
+  text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.circuit-table thead th { color: var(--muted); font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .5px; border-bottom: 2px solid var(--line); }
+.circuit-table tbody tr:hover { background: #fffaf0; }
+.circuit-table .num { color: var(--muted); font-family: var(--mono); width: 2.5rem; }
+.cname a { font-weight: 700; }
+.row-planned { opacity: .68; }
+.ports { color: var(--red-dk); white-space: nowrap; }
+.status { text-align: center; width: 2rem; }
+.libtag {
+  font-family: var(--mono); font-size: .82rem; background: #f3ead6;
+  padding: .1rem .45rem; border-radius: 5px;
+}
+
+/* ---- circuit detail ------------------------------------------------- */
+.ports.big { display: inline-block; margin-top: .4rem; font-size: 1rem;
+  background: #f6eede; padding: .4rem .7rem; border-radius: 6px; }
+.usage { margin-top: 1.2rem; }
+.code-block {
+  background: #20171a; color: #f4ece0; padding: 1rem 1.1rem; border-radius: 9px;
+  overflow-x: auto; font-family: var(--mono); font-size: .86rem; line-height: 1.5;
+  border: 1px solid #3a2b2f;
+}
+.code-block code { font-size: inherit; color: inherit; }
+.code-block .kw   { color: #f1a73c; font-weight: 600; }
+.code-block .prim { color: #6fd0e0; font-weight: 600; }
+.code-block .cmt  { color: #8b9a7e; font-style: italic; }
+.vector-table { max-width: 640px; }
+.vector-table .arrow, .circuit-table .arrow { color: var(--gold-dk); text-align: center; }
+.vector-table code { color: var(--ink); }
+.planned-note, .empty {
+  background: #fbeccd; border: 1px solid #ecd29a; border-radius: 8px;
+  padding: .9rem 1.1rem; color: #6a5320;
+}
+.empty { background: #fff; border-style: dashed; }
+
+/* ---- footer --------------------------------------------------------- */
+.footer {
+  border-top: 4px solid var(--gold); background: #fff;
+  padding: 1.2rem 0; font-size: .85rem; color: var(--muted); margin-top: 2rem;
+}
+.footer .big-top { margin-right: .3rem; }
+.notfound { text-align: center; padding: 3rem 0; }

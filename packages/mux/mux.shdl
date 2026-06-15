@@ -1,0 +1,305 @@
+"""
+mux — selection & routing: multiplexers, demultiplexers, decoders, encoders.
+
+Because SHDL has no tri-state, *all* data routing is built here out of
+multiplexers — never a shared driver. Everything is a netlist of the six
+primitives (AND/OR/NOT/XOR): a 2:1 mux is `O = (D0 AND NOT S) OR (D1 AND S)`,
+wider muxes are select trees, decoders are AND-of-matched-address-bits, and
+encoders are OR reductions. Bit 1 is the LSB. This module has no `top`
+marker — flatten any component explicitly.
+"""
+
+# --- multiplexers ---------------------------------------------------------
+
+# 2:1 mux, one bit:  O = D0 when S=0, D1 when S=1.
+component Mux2(D0, D1, S) -> (O) {
+    inv: NOT;
+    gA:  AND;
+    gB:  AND;
+    o1:  OR;
+    connect {
+        S -> inv.A;
+        D0 -> gA.A;   inv.O -> gA.B;
+        D1 -> gB.A;   S     -> gB.B;
+        gA.O -> o1.A;  gB.O -> o1.B;
+        o1.O -> O;
+    }
+}
+
+# 4:1 mux as a tree of three 2:1 cells. D[1]..D[4]; S[1] low select, S[2] high.
+component Mux4(D[4], S[2]) -> (O) {
+    mLo: Mux2;
+    mHi: Mux2;
+    mOut: Mux2;
+    connect {
+        D[1] -> mLo.D0;   D[2] -> mLo.D1;   S[1] -> mLo.S;
+        D[3] -> mHi.D0;   D[4] -> mHi.D1;   S[1] -> mHi.S;
+        mLo.O -> mOut.D0; mHi.O -> mOut.D1; S[2] -> mOut.S;
+        mOut.O -> O;
+    }
+}
+
+# 8:1 mux as two 4:1 halves plus a final 2:1.
+component Mux8(D[8], S[3]) -> (O) {
+    mLo: Mux4;
+    mHi: Mux4;
+    mOut: Mux2;
+    connect {
+        D[:4]  -> mLo.D;   S[:2] -> mLo.S;
+        D[5:8] -> mHi.D;   S[:2] -> mHi.S;
+        mLo.O -> mOut.D0;  mHi.O -> mOut.D1;  S[3] -> mOut.S;
+        mOut.O -> O;
+    }
+}
+
+# 2:1 select between two N-bit buses (one AND-OR cell per bit).
+component BusMux2<N = 8>(A[N], B[N], S) -> (O[N]) {
+    inv: NOT;
+    >i[N]{ gA{i}: AND;  gB{i}: AND;  o{i}: OR; }
+    connect {
+        S -> inv.A;
+        >i[N]{
+            A[{i}] -> gA{i}.A;   inv.O -> gA{i}.B;
+            B[{i}] -> gB{i}.A;   S     -> gB{i}.B;
+            gA{i}.O -> o{i}.A;   gB{i}.O -> o{i}.B;
+            o{i}.O -> O[{i}];
+        }
+    }
+}
+
+# Generic 2^S-input, W-bit-wide mux. D is a flat bus of width W*(2^S): input
+# m (m = 1..2^S) occupies D[(m-1)*W + 1 .. m*W]. A one-hot decode of Sel gates
+# each input, then per output bit an OR reduction selects the active one.
+# Default W=4, S=2 -> 4 inputs, D[16]. The Sel bit-test ladder covers S up to 3.
+component MuxN<W = 4, S = 2>(D[16], Sel[S]) -> (O[W]) {
+    vcc: __VCC__;
+    >k[S]{ sinv{k}: NOT; }
+    # one-hot: line m high iff Sel == m-1
+    >m[4]{ >k[S]{ oh{m}x{k}: AND; } }
+    # gate every input bit by its one-hot line
+    >m[4]{ >b[W]{ g{m}x{b}: AND; } }
+    # OR-reduce the gated inputs per output bit (4-input -> 3 ORs each)
+    >b[W]{ or{b}a: OR;  or{b}b: OR;  or{b}c: OR; }
+    connect {
+        >k[S]{ Sel[{k}] -> sinv{k}.A; }
+        >m[4]{
+            >k[S]{
+                when {k == 1} { vcc.O -> oh{m}x{k}.A; }
+                else          { oh{m}x{k-1}.O -> oh{m}x{k}.A; }
+                when {k == 1} {
+                    when { {m-1} - {m-1}/2*2 == 1 } { Sel[{k}]  -> oh{m}x{k}.B; }
+                    else { sinv{k}.O -> oh{m}x{k}.B; }
+                }
+                when {k == 2} {
+                    when { {m-1}/2 - {m-1}/4*2 == 1 } { Sel[{k}]  -> oh{m}x{k}.B; }
+                    else { sinv{k}.O -> oh{m}x{k}.B; }
+                }
+                when {k == 3} {
+                    when { {m-1}/4 - {m-1}/8*2 == 1 } { Sel[{k}]  -> oh{m}x{k}.B; }
+                    else { sinv{k}.O -> oh{m}x{k}.B; }
+                }
+            }
+            >b[W]{
+                D[{m-1}*W + b] -> g{m}x{b}.A;
+                oh{m}x{S}.O      -> g{m}x{b}.B;
+            }
+        }
+        >b[W]{
+            g1x{b}.O -> or{b}a.A;   g2x{b}.O -> or{b}a.B;
+            g3x{b}.O -> or{b}b.A;   g4x{b}.O -> or{b}b.B;
+            or{b}a.O -> or{b}c.A;   or{b}b.O -> or{b}c.B;
+            or{b}c.O -> O[{b}];
+        }
+    }
+}
+
+# --- demultiplexers -------------------------------------------------------
+# Route D to the selected output; all others are 0.  Each output is
+# D AND (address-match), i.e. a decoder whose enable line carries the data.
+
+component Demux2(D, S) -> (O0, O1) {
+    inv: NOT;
+    g0: AND;  g1: AND;
+    connect {
+        S -> inv.A;
+        D -> g0.A;  inv.O -> g0.B;  g0.O -> O0;
+        D -> g1.A;  S     -> g1.B;  g1.O -> O1;
+    }
+}
+
+component Demux4(D, S[2]) -> (O[4]) {
+    i1: NOT;  i2: NOT;
+    >j[4]{ a{j}: AND;  g{j}: AND; }
+    connect {
+        S[1] -> i1.A;   S[2] -> i2.A;
+        >j[4]{
+            # address match for line j-1 over the two select bits
+            when { {j-1} - {j-1}/2*2 == 1 } { S[1] -> a{j}.A; }
+            else { i1.O -> a{j}.A; }
+            when { {j-1}/2 - {j-1}/4*2 == 1 } { S[2] -> a{j}.B; }
+            else { i2.O -> a{j}.B; }
+            a{j}.O -> g{j}.A;   D -> g{j}.B;   g{j}.O -> O[{j}];
+        }
+    }
+}
+
+component Demux8(D, S[3]) -> (O[8]) {
+    i1: NOT;  i2: NOT;  i3: NOT;
+    >j[8]{ m1{j}: AND;  m2{j}: AND;  g{j}: AND; }
+    connect {
+        S[1] -> i1.A;   S[2] -> i2.A;   S[3] -> i3.A;
+        >j[8]{
+            when { {j-1} - {j-1}/2*2 == 1 } { S[1] -> m1{j}.A; }
+            else { i1.O -> m1{j}.A; }
+            when { {j-1}/2 - {j-1}/4*2 == 1 } { S[2] -> m1{j}.B; }
+            else { i2.O -> m1{j}.B; }
+            when { {j-1}/4 - {j-1}/8*2 == 1 } { S[3] -> m2{j}.A; }
+            else { i3.O -> m2{j}.A; }
+            m1{j}.O -> m2{j}.B;
+            m2{j}.O -> g{j}.A;   D -> g{j}.B;   g{j}.O -> O[{j}];
+        }
+    }
+}
+
+# --- decoders -------------------------------------------------------------
+# One-hot: output line (j-1) is high iff A == j-1 AND EN.
+
+component Decoder2to4(A[2], EN) -> (O[4]) {
+    i1: NOT;  i2: NOT;
+    >j[4]{ a{j}: AND;  g{j}: AND; }
+    connect {
+        A[1] -> i1.A;   A[2] -> i2.A;
+        >j[4]{
+            when { {j-1} - {j-1}/2*2 == 1 } { A[1] -> a{j}.A; }
+            else { i1.O -> a{j}.A; }
+            when { {j-1}/2 - {j-1}/4*2 == 1 } { A[2] -> a{j}.B; }
+            else { i2.O -> a{j}.B; }
+            a{j}.O -> g{j}.A;   EN -> g{j}.B;   g{j}.O -> O[{j}];
+        }
+    }
+}
+
+component Decoder3to8(A[3], EN) -> (O[8]) {
+    i1: NOT;  i2: NOT;  i3: NOT;
+    >j[8]{ m1{j}: AND;  m2{j}: AND;  g{j}: AND; }
+    connect {
+        A[1] -> i1.A;   A[2] -> i2.A;   A[3] -> i3.A;
+        >j[8]{
+            when { {j-1} - {j-1}/2*2 == 1 } { A[1] -> m1{j}.A; }
+            else { i1.O -> m1{j}.A; }
+            when { {j-1}/2 - {j-1}/4*2 == 1 } { A[2] -> m1{j}.B; }
+            else { i2.O -> m1{j}.B; }
+            when { {j-1}/4 - {j-1}/8*2 == 1 } { A[3] -> m2{j}.A; }
+            else { i3.O -> m2{j}.A; }
+            m1{j}.O -> m2{j}.B;
+            m2{j}.O -> g{j}.A;   EN -> g{j}.B;   g{j}.O -> O[{j}];
+        }
+    }
+}
+
+# Generic n -> 2^n one-hot decoder. Each output line is a chain of N ANDs:
+# the first AND folds in EN, the rest fold in A[k] or NOT A[k] depending on
+# bit (k-1) of the line index. The Sel bit-test ladder covers N up to 3
+# (output width 8 at the default).
+component DecoderN<N = 3>(A[N], EN) -> (O[8]) {
+    >k[N]{ inv{k}: NOT; }
+    >j[8]{ >k[N]{ pp{j}x{k}: AND; } }
+    connect {
+        >k[N]{ A[{k}] -> inv{k}.A; }
+        >j[8]{
+            >k[N]{
+                when {k == 1} { EN -> pp{j}x{k}.A; }
+                else          { pp{j}x{k-1}.O -> pp{j}x{k}.A; }
+                when {k == 1} {
+                    when { {j-1} - {j-1}/2*2 == 1 } { A[{k}] -> pp{j}x{k}.B; }
+                    else { inv{k}.O -> pp{j}x{k}.B; }
+                }
+                when {k == 2} {
+                    when { {j-1}/2 - {j-1}/4*2 == 1 } { A[{k}] -> pp{j}x{k}.B; }
+                    else { inv{k}.O -> pp{j}x{k}.B; }
+                }
+                when {k == 3} {
+                    when { {j-1}/4 - {j-1}/8*2 == 1 } { A[{k}] -> pp{j}x{k}.B; }
+                    else { inv{k}.O -> pp{j}x{k}.B; }
+                }
+            }
+            pp{j}x{N}.O -> O[{j}];
+        }
+    }
+}
+
+# --- encoders -------------------------------------------------------------
+
+# Binary encoder: assumes a one-hot D. Output bit b is the OR of every input
+# line whose index (pos-1) has bit b set.  D[2],D[4],D[6],D[8] -> O[1]; etc.
+component Encoder8to3(D[8]) -> (O[3]) {
+    o1a: OR;  o1b: OR;  o1c: OR;     # O[1] = D2 | D4 | D6 | D8
+    o2a: OR;  o2b: OR;  o2c: OR;     # O[2] = D3 | D4 | D7 | D8
+    o3a: OR;  o3b: OR;  o3c: OR;     # O[3] = D5 | D6 | D7 | D8
+    connect {
+        D[2] -> o1a.A;  D[4] -> o1a.B;
+        D[6] -> o1b.A;  D[8] -> o1b.B;
+        o1a.O -> o1c.A; o1b.O -> o1c.B;  o1c.O -> O[1];
+
+        D[3] -> o2a.A;  D[4] -> o2a.B;
+        D[7] -> o2b.A;  D[8] -> o2b.B;
+        o2a.O -> o2c.A; o2b.O -> o2c.B;  o2c.O -> O[2];
+
+        D[5] -> o3a.A;  D[6] -> o3a.B;
+        D[7] -> o3b.A;  D[8] -> o3b.B;
+        o3a.O -> o3c.A; o3b.O -> o3c.B;  o3c.O -> O[3];
+    }
+}
+
+# 8->3 priority encoder: O is the index of the HIGHEST set input bit; Valid
+# is high iff any input is set. A bit "wins" only when no higher bit is set,
+# so it is masked by the complement of the OR of all lines above it. The
+# winning lines are one-hot, so encoding them is the same OR pattern as above.
+component PriorityEnc8(D[8]) -> (O[3], Valid) {
+    # above{j} = OR of D[j+1 .. 8], built from the top (j=7) downward.
+    >j[7]{ above{j}: OR; }
+    >j[8]{ nabove{j}: NOT;  win{j}: AND; }
+    # Valid = OR of all 8 inputs.
+    v1: OR;  v2: OR;  v3: OR;  v4: OR;  v5: OR;  v6: OR;  v7: OR;
+    # encode the one-hot winner lines into the 3-bit index.
+    o1a: OR;  o1b: OR;  o1c: OR;
+    o2a: OR;  o2b: OR;  o2c: OR;
+    o3a: OR;  o3b: OR;  o3c: OR;
+    connect {
+        # running OR of the higher lines
+        >j[7]{
+            when {j == 7} { D[8]          -> above{j}.A; }
+            else          { above{j+1}.O  -> above{j}.A; }
+            D[{j+1}] -> above{j}.B;
+        }
+        # win{j} = D[j] AND NOT(above{j});  the top line (j=8) always wins if set.
+        >j[8]{
+            D[{j}] -> win{j}.A;
+            when {j == 8} { D[8] -> nabove{j}.A; }   # placeholder: nabove8 unused as mask
+            else          { above{j}.O -> nabove{j}.A; }
+            when {j == 8} { D[8] -> win{j}.B; }       # D[8] AND D[8] = D[8]
+            else          { nabove{j}.O -> win{j}.B; }
+        }
+        # Valid: OR-reduce all inputs.
+        D[1] -> v1.A;  D[2] -> v1.B;
+        D[3] -> v2.A;  D[4] -> v2.B;
+        D[5] -> v3.A;  D[6] -> v3.B;
+        D[7] -> v4.A;  D[8] -> v4.B;
+        v1.O -> v5.A;  v2.O -> v5.B;
+        v3.O -> v6.A;  v4.O -> v6.B;
+        v5.O -> v7.A;  v6.O -> v7.B;  v7.O -> Valid;
+
+        # encode the winner lines (one-hot) -> binary index.
+        win2.O -> o1a.A;  win4.O -> o1a.B;
+        win6.O -> o1b.A;  win8.O -> o1b.B;
+        o1a.O -> o1c.A;   o1b.O -> o1c.B;   o1c.O -> O[1];
+
+        win3.O -> o2a.A;  win4.O -> o2a.B;
+        win7.O -> o2b.A;  win8.O -> o2b.B;
+        o2a.O -> o2c.A;   o2b.O -> o2c.B;   o2c.O -> O[2];
+
+        win5.O -> o3a.A;  win6.O -> o3a.B;
+        win7.O -> o3b.A;  win8.O -> o3b.B;
+        o3a.O -> o3c.A;   o3b.O -> o3c.B;   o3c.O -> O[3];
+    }
+}

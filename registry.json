@@ -1,0 +1,16 @@
+{
+  "registry_format": 1,
+  "name": "Circuit Circus",
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "packages": [
+    {"name": "gates", "version": "0.1.0", "summary": "Universal & wide gates above the six SHDL primitives.", "path": "packages/gates", "circuits": 12, "dependencies": {}},
+    {"name": "mux",   "version": "0.1.0", "summary": "Selection & routing: mux, demux, decoder, encoder.",     "path": "packages/mux",   "circuits": 13, "dependencies": {}},
+    {"name": "arith", "version": "0.1.0", "summary": "Adders, subtractors, comparators, multiply/divide, ALU.", "path": "packages/arith", "circuits": 16, "dependencies": {"gates": "^0.1.0"}},
+    {"name": "shift", "version": "0.1.0", "summary": "Logical/arithmetic shifters, rotators, barrel network.",  "path": "packages/shift", "circuits": 7,  "dependencies": {"mux": "^0.1.0"}},
+    {"name": "seq",   "version": "0.1.0", "summary": "Latches, flip-flops, registers, counters.",               "path": "packages/seq",   "circuits": 18, "dependencies": {}},
+    {"name": "clock", "version": "0.1.0", "summary": "Oscillators, dividers, edge logic, PWM.",                 "path": "packages/clock", "circuits": 8,  "dependencies": {"seq": "^0.1.0"}},
+    {"name": "code",  "version": "0.1.0", "summary": "Gray/BCD, parity, Hamming ECC, 7-segment.",               "path": "packages/code",  "circuits": 10, "dependencies": {"gates": "^0.1.0"}},
+    {"name": "mem",   "version": "0.1.0", "summary": "RAM, ROM, FIFO, stack, register file, CAM.",              "path": "packages/mem",   "circuits": 8,  "dependencies": {"gates": "^0.1.0", "mux": "^0.1.0", "seq": "^0.1.0"}},
+    {"name": "cpu",   "version": "0.1.0", "summary": "Processor building blocks & demonstration CPUs.",        "path": "packages/cpu",   "circuits": 8,  "dependencies": {"gates": "^0.1.0", "mux": "^0.1.0", "arith": "^0.1.0", "seq": "^0.1.0"}}
+  ]
+}

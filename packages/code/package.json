@@ -1,0 +1,29 @@
+{
+  "manifest_format": 1,
+  "name": "code",
+  "version": "0.1.0",
+  "summary": "Gray/BCD conversion, parity, Hamming ECC, 7-segment.",
+  "description": "Encoding, decoding & error-correcting codes as combinational logic networks: binary<->Gray, binary<->BCD (combinational double-dabble), a one-digit decimal adder, a hex 7-segment decoder, even-parity generate/check, and a Hamming(7,4) single-error-correcting encoder/decoder. Built on the six SHDL primitives plus gates::{XorN, OrN}; the internal ripple adders are raw-gate full adders, so the package depends only on gates.",
+  "license": "GPL-3.0-or-later",
+  "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+  "homepage": "https://github.com/rafa-rrayes/SHDL",
+  "keywords": ["gray", "bcd", "double-dabble", "parity", "hamming", "ecc", "seven-segment", "encoder"],
+  "shdl": ">=1.0.0",
+  "module": "code.shdl",
+  "dependencies": {
+    "gates": "^0.1.0"
+  },
+  "tests": "tests/code.tests.json",
+  "exports": [
+    {"name": "BinToGray", "summary": "Binary -> Gray code.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "B", "width": "N"}], "outputs": [{"name": "G", "width": "N"}]},
+    {"name": "GrayToBin", "summary": "Gray -> binary (prefix-XOR).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "G", "width": "N"}], "outputs": [{"name": "B", "width": "N"}]},
+    {"name": "BinToBcd", "summary": "8-bit binary -> 3-digit packed BCD (double-dabble).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "B", "width": "N"}], "outputs": [{"name": "Bcd", "width": 12}]},
+    {"name": "BcdToBin", "summary": "Packed BCD -> binary (D=2: 2 digits -> 7 bits).", "params": [{"name": "D", "default": 2}], "inputs": [{"name": "Bcd", "width": "4*D"}], "outputs": [{"name": "B", "width": 7}]},
+    {"name": "BcdAdder", "summary": "One-digit decimal (BCD) adder with +6 correction.", "params": [], "inputs": [{"name": "A", "width": 4}, {"name": "B", "width": 4}, {"name": "Cin", "width": 1}], "outputs": [{"name": "S", "width": 4}, {"name": "Cout", "width": 1}]},
+    {"name": "SevenSegDecoder", "summary": "Hex digit -> 7-segment pattern (Seg[1]=a..Seg[7]=g, active-high).", "params": [], "inputs": [{"name": "Hex", "width": 4}], "outputs": [{"name": "Seg", "width": 7}]},
+    {"name": "ParityGen", "summary": "Even parity-bit generator (XOR of all bits).", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "D", "width": "N"}], "outputs": [{"name": "P", "width": 1}]},
+    {"name": "ParityCheck", "summary": "Even-parity error detector.", "params": [{"name": "N", "default": 8}], "inputs": [{"name": "D", "width": "N"}, {"name": "P", "width": 1}], "outputs": [{"name": "Err", "width": 1}]},
+    {"name": "HammingEncode", "summary": "Hamming(7,4) encoder.", "params": [], "inputs": [{"name": "D", "width": 4}], "outputs": [{"name": "Code", "width": 7}]},
+    {"name": "HammingDecode", "summary": "Hamming(7,4) single-error-correcting decoder.", "params": [], "inputs": [{"name": "Code", "width": 7}], "outputs": [{"name": "D", "width": 4}, {"name": "Err", "width": 1}]}
+  ]
+}
