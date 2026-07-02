@@ -13,7 +13,10 @@ verifiable cycle-by-cycle against the oracle (and, soon, a `.shtb` testbench).
 ## 1. How the index works
 
 A **library** is a package of related SHDL components. A **circuit** is one
-component inside it.
+component inside it. The published packages are hosted as a static index at
+<https://rafa-rrayes.github.io/CCircus/> (format: `INDEX_FORMAT.md`), and the
+`shdl` CLI that ships with [PySHDL](https://pypi.org/project/pyshdl/)
+installs from it:
 
 ```
 shdl add arith                      # install a library from Circuit Circus

@@ -1,0 +1,202 @@
+{
+  "index_format": 2,
+  "name": "clock",
+  "latest": "0.1.0",
+  "versions": {
+    "0.1.0": {
+      "summary": "Oscillators, dividers, edge logic, and PWM.",
+      "description": "Free-running and derived timing built on seq: a ring oscillator (the one component owning raw inverters, since an odd inverter loop has no fixed point and must seed every NOT), divide-by-2 and divide-by-N square-wave dividers, a synchronous one-shot pulse generator, rising/falling edge detectors, a sample-agreement debouncer, and a counter-compare PWM generator. The edge/pulse outputs go high asynchronously when their input changes and clear at the next clock edge.",
+      "license": "GPL-3.0-or-later",
+      "authors": [
+        "rafa-rrayes <rafa@rayes.com.br>"
+      ],
+      "homepage": "https://github.com/rafa-rrayes/SHDL",
+      "keywords": [
+        "clock",
+        "oscillator",
+        "divider",
+        "edge-detector",
+        "debounce",
+        "pwm",
+        "timing"
+      ],
+      "shdl": ">=1.0.0",
+      "module": "clock.shdl",
+      "dependencies": {
+        "seq": "^0.1.0"
+      },
+      "archive": "archives/clock-0.1.0.tar.gz",
+      "sha256": "911810470c8d691c022fa309646ba3d4257153c61679b7edd69f8ae5ba1075fc",
+      "size": 4564,
+      "exports": [
+        {
+          "name": "RingOscillator",
+          "summary": "Free-running odd-inverter-loop clock source.",
+          "params": [],
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "stdlib_seed": true
+        },
+        {
+          "name": "ClockDivideBy2",
+          "summary": "Toggle-FF frequency halver.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "ClockDivideByN",
+          "summary": "Johnson-counter divide-by-N 50% square wave (N even).",
+          "params": [
+            {
+              "name": "N",
+              "default": 10
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "PulseGenerator",
+          "summary": "Synchronous one-shot: single pulse per Trig rising edge.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "Trig",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Pulse",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "EdgeRising",
+          "summary": "Rising-edge detector (In AND NOT prev).",
+          "params": [],
+          "inputs": [
+            {
+              "name": "In",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Edge",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "EdgeFalling",
+          "summary": "Falling-edge detector (NOT In AND prev).",
+          "params": [],
+          "inputs": [
+            {
+              "name": "In",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Edge",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "Debouncer",
+          "summary": "N-sample-agreement debouncer; rejects short glitches.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "In",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "PwmGenerator",
+          "summary": "Counter-compare PWM; duty = Duty / 2^N.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Duty",
+              "width": "N"
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

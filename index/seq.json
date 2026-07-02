@@ -1,0 +1,509 @@
+{
+  "index_format": 2,
+  "name": "seq",
+  "latest": "0.1.0",
+  "versions": {
+    "0.1.0": {
+      "summary": "Latches, flip-flops, registers, and counters.",
+      "description": "Sequential building blocks: NOR/NAND SR latches, gated and D latches, edge-triggered D/JK/T flip-flops, parallel and load-enable registers, SISO/SIPO/PISO and universal shift registers, and ripple/synchronous/up-down/ring/Johnson counters. The primitive latches are cross-coupled raw AND/OR/NOT gates with a fully seeded init fixed point; everything above them composes instances of those primitives, whose seeds carry through flattening.",
+      "license": "GPL-3.0-or-later",
+      "authors": [
+        "rafa-rrayes <rafa@rayes.com.br>"
+      ],
+      "homepage": "https://github.com/rafa-rrayes/SHDL",
+      "keywords": [
+        "latch",
+        "flip-flop",
+        "register",
+        "shift-register",
+        "counter",
+        "sequential",
+        "feedback"
+      ],
+      "shdl": ">=1.0.0",
+      "module": "seq.shdl",
+      "dependencies": {},
+      "archive": "archives/seq-0.1.0.tar.gz",
+      "sha256": "d96530f99a016cdc5ac70cbbecb25b661dbae0a01e584b394af1dc3e3b0cc224",
+      "size": 7071,
+      "exports": [
+        {
+          "name": "SrLatch",
+          "summary": "NOR cross-coupled set/reset latch.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "S",
+              "width": 1
+            },
+            {
+              "name": "R",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ],
+          "stdlib_seed": true
+        },
+        {
+          "name": "SrLatchNand",
+          "summary": "NAND (active-low) SR latch.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "S",
+              "width": 1
+            },
+            {
+              "name": "R",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "GatedSrLatch",
+          "summary": "Enable-gated SR latch.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "S",
+              "width": 1
+            },
+            {
+              "name": "R",
+              "width": 1
+            },
+            {
+              "name": "EN",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "DLatch",
+          "summary": "Transparent (level-sensitive) D latch.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "D",
+              "width": 1
+            },
+            {
+              "name": "EN",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ],
+          "stdlib_seed": true
+        },
+        {
+          "name": "DFlipFlop",
+          "summary": "Rising-edge master-slave D flip-flop.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "D",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "JkFlipFlop",
+          "summary": "Edge-triggered JK flip-flop.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "J",
+              "width": 1
+            },
+            {
+              "name": "K",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "TFlipFlop",
+          "summary": "Toggle flip-flop.",
+          "params": [],
+          "inputs": [
+            {
+              "name": "T",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": 1
+            },
+            {
+              "name": "Qn",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "summary": "N-bit edge-triggered register.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "D",
+              "width": "N"
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "RegisterEn",
+          "summary": "N-bit register with load enable (transparent).",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "D",
+              "width": "N"
+            },
+            {
+              "name": "LD",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ],
+          "stdlib_seed": true
+        },
+        {
+          "name": "ShiftRegSISO",
+          "summary": "Serial-in / serial-out shift register.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "In",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "ShiftRegSIPO",
+          "summary": "Serial-in / parallel-out shift register.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "In",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "ShiftRegPISO",
+          "summary": "Parallel-in / serial-out shift register.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "D",
+              "width": "N"
+            },
+            {
+              "name": "LD",
+              "width": 1
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Out",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "name": "UniversalShift",
+          "summary": "Load / shift-L / shift-R / hold universal shift register.",
+          "params": [
+            {
+              "name": "N",
+              "default": 8
+            }
+          ],
+          "inputs": [
+            {
+              "name": "D",
+              "width": "N"
+            },
+            {
+              "name": "L",
+              "width": 1
+            },
+            {
+              "name": "R",
+              "width": 1
+            },
+            {
+              "name": "Mode",
+              "width": 2
+            },
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "RippleCounter",
+          "summary": "Asynchronous ripple up-counter.",
+          "params": [
+            {
+              "name": "N",
+              "default": 4
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "SyncCounter",
+          "summary": "Synchronous up-counter with enable.",
+          "params": [
+            {
+              "name": "N",
+              "default": 4
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            },
+            {
+              "name": "EN",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "UpDownCounter",
+          "summary": "Direction-controlled up/down counter.",
+          "params": [
+            {
+              "name": "N",
+              "default": 4
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            },
+            {
+              "name": "Up",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "RingCounter",
+          "summary": "Self-starting one-hot rotating counter.",
+          "params": [
+            {
+              "name": "N",
+              "default": 4
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        },
+        {
+          "name": "JohnsonCounter",
+          "summary": "Twisted-ring (Johnson) counter.",
+          "params": [
+            {
+              "name": "N",
+              "default": 4
+            }
+          ],
+          "inputs": [
+            {
+              "name": "Clk",
+              "width": 1
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Q",
+              "width": "N"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

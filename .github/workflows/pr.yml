@@ -1,0 +1,52 @@
+# PR admission: everything INDEX_FORMAT.md §7 promises, split into a
+# toolchain-free index job and a full build+test verify job.
+name: PR
+
+on:
+  pull_request:
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Index matches the manifests (byte-exact)
+        run: python tools/cc.py gen-index --check
+      - name: Archives are append-only
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          touched=$(git diff --diff-filter=MD --name-only "origin/${{ github.base_ref }}...HEAD" -- archives/)
+          if [ -n "$touched" ]; then
+            echo "published archives were modified or deleted (they are immutable):"
+            echo "$touched"
+            exit 1
+          fi
+      - name: Archive size cap (1 MB)
+        run: |
+          big=$(find archives -name '*.tar.gz' -size +1M || true)
+          if [ -n "$big" ]; then
+            echo "archives exceed the 1 MB cap:"
+            echo "$big"
+            exit 1
+          fi
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # Verify against what consumers get. Pinned to the toolchain git sha
+      # until pyshdl 1.1.0 (which renames the import package to `SHDL`)
+      # ships; then flip to --with 'pyshdl==1.1.0'.
+      - name: Build + test every package
+        run: >
+          uv run --no-project --python 3.14
+          --with 'pyshdl @ git+https://github.com/rafa-rrayes/SHDL@52d0863c118867f0d990ce3c2e9f71da5a22bfa4'
+          python tools/cc.py all

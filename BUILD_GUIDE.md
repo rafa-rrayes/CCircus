@@ -183,3 +183,32 @@ If a component is marked ✦ in `CATALOG.md`, a working version already exists i
 the toolchain's `examples/` (the sibling `../shdlc/examples/`, or `examples/CPU/`
 for the processor parts) — read it and adapt it (rename to the catalog's
 component name) rather than reinventing it.
+
+## 8. Publishing
+
+Once `cc.py check <name>` says `OK: 0 problem(s)`:
+
+```bash
+# new package: start at 0.1.0. Changed package: bump the version first —
+# published versions are immutable (see MANIFEST_FORMAT.md §6 for what
+# counts as patch/minor/major).
+python tools/cc.py gen-index          # pure stdlib; regenerates the index
+git add packages/<name> registry.json index/<name>.json archives/<name>-*.tar.gz
+git commit -m "<name> <version>: <what changed>"
+# push to your fork and open a PR against rafa-rrayes/CCircus
+```
+
+Every PR must pass the CI gates before merge:
+
+1. `gen-index --check` — the committed `registry.json`, `index/`, and
+   `archives/` byte-match a fresh regeneration from the manifests (this also
+   runs every admission rule in `INDEX_FORMAT.md` §7: manifest fields,
+   semver grammar, dependency existence/satisfaction/acyclicity, and
+   registry-wide component- and module-name uniqueness).
+2. Append-only `archives/` — no existing archive modified or deleted.
+3. Archive size cap — 1 MB per archive.
+4. `cc.py all` — every export of every package builds and every test vector
+   passes against the published toolchain.
+
+On merge to main the site deploys to GitHub Pages automatically; your
+package is installable with `shdl add <name>` a few minutes later.

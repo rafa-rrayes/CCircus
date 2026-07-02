@@ -1,0 +1,43 @@
+# Publish the index to GitHub Pages on every push to main.
+# The site is the repo tree minus tools/web/CI: the generated index files,
+# the archives, the package sources, and the specs.
+name: Publish index
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Index matches the manifests (byte-exact)
+        run: python tools/cc.py gen-index --check
+      - name: Assemble site
+        run: |
+          mkdir _site
+          cp registry.json README.md _site/
+          cp INDEX_FORMAT.md MANIFEST_FORMAT.md CATALOG.md CircuitCircus.md BUILD_GUIDE.md _site/
+          cp -R index archives packages _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
