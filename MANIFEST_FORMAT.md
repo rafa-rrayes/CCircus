@@ -72,6 +72,8 @@ Rules:
   both.
 - `tests` is honored by `cc.py test`: it names the test file to run, relative
   to the package directory; when absent, `tests/<name>.tests.json` is used.
+  The resolved file **must exist** — `gen-index` rejects the tree and
+  `cc.py test` counts it as a failure (a typo must not skip verification).
 - `dependencies` lists only *other Circuit Circus packages*, mapping name →
   semver range (grammar: `INDEX_FORMAT.md` §6). The six SHDL primitives
   (`AND OR NOT XOR __VCC__ __GND__`) are always available and are never

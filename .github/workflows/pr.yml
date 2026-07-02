@@ -21,7 +21,9 @@ jobs:
       - name: Archives are append-only
         run: |
           git fetch --no-tags origin "${{ github.base_ref }}"
-          touched=$(git diff --diff-filter=MD --name-only "origin/${{ github.base_ref }}...HEAD" -- archives/)
+          # --no-renames: a rename would otherwise register as R (not M/D)
+          # and slip past the filter, deleting a published archive
+          touched=$(git diff --no-renames --diff-filter=MD --name-only "origin/${{ github.base_ref }}...HEAD" -- archives/)
           if [ -n "$touched" ]; then
             echo "published archives were modified or deleted (they are immutable):"
             echo "$touched"

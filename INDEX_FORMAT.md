@@ -29,10 +29,12 @@ packages/<name>/…                 # source of truth (manifests, .shdl, tests)
 
 A client is configured with a single **index URL** (e.g.
 `https://rafa-rrayes.github.io/CCircus`). It fetches
-`<index-url>/registry.json`; **every URL inside the index is relative** and is
-resolved against the URL of the JSON file that contained it (standard RFC 3986
-`urljoin` against the `registry.json` URL). No index file contains an absolute
-URL, so a mirror or a local checkout works unchanged.
+`<index-url>/registry.json`; **every URL inside the index is relative to the
+index root** — the directory holding `registry.json` — regardless of which
+JSON file contains it (equivalently: RFC 3986 `urljoin` against the
+`registry.json` URL, never against a nested file like `index/<name>.json`).
+No index file contains an absolute URL, so a mirror or a local checkout works
+unchanged.
 
 ## 2. Root index — `registry.json`
 
@@ -167,11 +169,12 @@ any member whose path does not start with `<name>-<version>/`.
 | archive | `archives/<name>-<version>.tar.gz` |
 | package source (browse) | `packages/<name>/…` |
 
-Relative URLs inside JSON are resolved against the containing file's URL:
-`archive: "archives/arith-0.1.0.tar.gz"` inside
-`https://host/CCircus/registry.json` resolves to
+Relative URLs inside index JSON — wherever they appear, including inside
+`index/<name>.json` — are resolved against the **index root** (the
+`registry.json` URL): `archive: "archives/arith-0.1.0.tar.gz"` under index
+URL `https://host/CCircus` resolves to
 `https://host/CCircus/archives/arith-0.1.0.tar.gz`. The same works for
-`file:///…/CCircus/registry.json`.
+`file:///…/CCircus`.
 
 ## 6. Semver: versions and ranges
 
@@ -220,8 +223,10 @@ build+test sweep on every PR:
    namespace is flat and program-global; a collision would silently shadow.)
 7. Same-version republish with different bytes is an error (§3); existing
    archives are never modified or deleted (append-only, CI-guarded).
-8. Every export builds at its default params and every test vector passes
-   (`cc.py all` — the toolchain-dependent half of admission).
+8. Every package's test file exists (`tests` in the manifest, default
+   `tests/<name>.tests.json`) — a missing or mistyped path is an error, never
+   a skip — and every export builds at its default params and every test
+   vector passes (`cc.py all` — the toolchain-dependent half of admission).
 
 ## 8. Golden example (minimal two-package registry)
 

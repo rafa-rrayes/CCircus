@@ -90,7 +90,8 @@ def parse_version(s: str) -> tuple[int, int, int]:
         raise CCError(f"invalid version {s!r} (want X.Y.Z)")
     nums = []
     for p in parts:
-        if not p.isdigit() or (len(p) > 1 and p[0] == "0"):
+        # isascii(): isdigit() alone admits Unicode digits int() rejects
+        if not (p.isascii() and p.isdigit()) or (len(p) > 1 and p[0] == "0"):
             raise CCError(f"invalid version {s!r} (want X.Y.Z, no leading zeros)")
         nums.append(int(p))
     return tuple(nums)  # type: ignore[return-value]
@@ -220,8 +221,11 @@ def test_pkg(pkg: str) -> tuple[int, int]:
     manifest = load_manifest(pkg)
     tfile = PKG_DIR / pkg / manifest.get("tests", f"tests/{pkg}.tests.json")
     if not tfile.is_file():
-        print(f"[test]  {pkg}: no test file ({tfile.name}) — skipped")
-        return 0, 0
+        # a missing test file is a FAILURE, never a silent skip: a manifest
+        # typo must not vacuously satisfy "every vector passes"
+        print(f"  FAIL  {pkg}: test file not found: {tfile}")
+        print(f"[test]  {pkg}: 0/1 cases green")
+        return 0, 1
     spec = json.loads(tfile.read_text(encoding="utf-8"))
     passed = total = 0
     for case in spec.get("cases", []):
@@ -277,7 +281,7 @@ def validate_tree() -> dict[str, dict]:
         if missing:
             errors.append(f"{pkg}: manifest missing required fields: {', '.join(missing)}")
             continue
-        if m["manifest_format"] != 1:
+        if type(m["manifest_format"]) is not int or m["manifest_format"] != 1:
             errors.append(f"{pkg}: unsupported manifest_format {m['manifest_format']!r}")
         if m["name"] != pkg:
             errors.append(f"{pkg}: manifest name {m['name']!r} != directory name")
@@ -285,6 +289,12 @@ def validate_tree() -> dict[str, dict]:
             errors.append(f"{pkg}: module {m['module']!r} != {pkg}.shdl")
         if not (PKG_DIR / pkg / m["module"]).is_file():
             errors.append(f"{pkg}: module file {m['module']} does not exist")
+        tests_rel = m.get("tests", f"tests/{pkg}.tests.json")
+        if not (PKG_DIR / pkg / tests_rel).is_file():
+            errors.append(
+                f"{pkg}: test file {tests_rel} does not exist — a package is "
+                f"admitted only with passing vectors (INDEX_FORMAT.md §7)"
+            )
         if not m["authors"]:
             errors.append(f"{pkg}: authors must list at least one author")
         try:
@@ -498,6 +508,16 @@ def generate_index() -> dict[str, bytes]:
             )
         versions[ver] = _version_entry(m, archive_rel, sha, len(blob))
         ordered = dict(sorted(versions.items(), key=lambda kv: parse_version(kv[0])))
+        # referential integrity: every carried-forward version must still have
+        # its archive on disk, or the registry would advertise a 404
+        for v, entry in ordered.items():
+            rel = entry.get("archive", "")
+            if rel != archive_rel and not (ROOT / rel).is_file():
+                raise CCError(
+                    f"index/{pkg}.json version {v} references {rel or '<missing>'} "
+                    f"which does not exist — restore the archive or remove the "
+                    f"version entry"
+                )
         latest = max(ordered, key=parse_version)
         outputs[index_rel] = _json_bytes(
             {"index_format": 2, "name": pkg, "latest": latest, "versions": ordered}
