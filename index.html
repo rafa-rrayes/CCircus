@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circuit Circus — the SHDL package index</title>
+<style>
+  :root {
+    --bg: #12141a;
+    --panel: #1a1d26;
+    --edge: #2a2e3c;
+    --ink: #e8e6df;
+    --dim: #9a97a0;
+    --gold: #e8b44c;
+    --red: #d95d54;
+    --teal: #4cc9b0;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 ui-sans-serif, system-ui, "Helvetica Neue", sans-serif;
+    padding: 0 1.25rem 4rem;
+  }
+  .tent {
+    height: 10px;
+    background: repeating-linear-gradient(90deg,
+      var(--red) 0 28px, var(--panel) 28px 56px);
+    margin: 0 -1.25rem;
+  }
+  main { max-width: 60rem; margin: 0 auto; }
+  header { padding: 2.5rem 0 1.5rem; }
+  h1 {
+    font-size: 1.9rem;
+    letter-spacing: .01em;
+  }
+  h1 .ring { color: var(--gold); }
+  .tag { color: var(--dim); margin-top: .35rem; }
+  .quickstart {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0 2rem;
+    overflow-x: auto;
+  }
+  .quickstart code {
+    font: 14px/1.9 ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre;
+    display: block;
+  }
+  .quickstart .c { color: var(--dim); }
+  .quickstart .p { color: var(--gold); }
+  input[type="search"] {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    color: var(--ink);
+    font: inherit;
+    padding: .55rem .9rem;
+    margin-bottom: 1rem;
+  }
+  input[type="search"]:focus { outline: 1px solid var(--gold); }
+  .pkg {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: .75rem;
+  }
+  .pkg-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .6rem;
+  }
+  .pkg-name {
+    font: 600 1.05rem ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--teal);
+    text-decoration: none;
+  }
+  .pkg-name:hover { text-decoration: underline; }
+  .pkg-version { color: var(--gold); font-size: .9rem; }
+  .pkg-circuits { color: var(--dim); font-size: .85rem; margin-left: auto; }
+  .pkg-summary { color: var(--ink); margin-top: .3rem; }
+  .pkg-meta { color: var(--dim); font-size: .85rem; margin-top: .4rem; }
+  .pkg-meta code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .pkg-meta a { color: var(--dim); }
+  .status { color: var(--dim); padding: 2rem 0; text-align: center; }
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--edge);
+    color: var(--dim);
+    font-size: .9rem;
+  }
+  footer a { color: var(--teal); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  footer .sep { margin: 0 .5rem; color: var(--edge); }
+</style>
+</head>
+<body>
+<div class="tent"></div>
+<main>
+  <header>
+    <h1><span class="ring">&#9678;</span> Circuit Circus</h1>
+    <p class="tag">The SHDL package index — versioned, immutable, gate-level circuit packages.</p>
+  </header>
+
+  <div class="quickstart">
+    <code><span class="c"># install the toolchain, then pull a package into your project</span>
+<span class="p">$</span> pip install pyshdl
+<span class="p">$</span> shdl new mychip &amp;&amp; cd mychip
+<span class="p">$</span> shdl add arith
+<span class="p">$</span> shdl build &amp;&amp; shdl test</code>
+  </div>
+
+  <input type="search" id="filter" placeholder="Filter packages — name, summary, keyword&hellip;" aria-label="Filter packages">
+  <div id="packages"><p class="status">Loading registry&hellip;</p></div>
+
+  <footer>
+    <a href="https://github.com/rafa-rrayes/CCircus">GitHub</a><span class="sep">&middot;</span>
+    <a href="https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md">index format</a><span class="sep">&middot;</span>
+    <a href="https://github.com/rafa-rrayes/CCircus/blob/main/MANIFEST_FORMAT.md">publish a package</a><span class="sep">&middot;</span>
+    <a href="https://pypi.org/project/pyshdl/">pyshdl on PyPI</a><span class="sep">&middot;</span>
+    <a href="registry.json">registry.json</a>
+  </footer>
+</main>
+<script>
+(async () => {
+  const box = document.getElementById("packages");
+  let packages;
+  try {
+    const res = await fetch("registry.json");
+    if (!res.ok) throw new Error(res.status);
+    packages = (await res.json()).packages;
+  } catch (e) {
+    box.innerHTML = '<p class="status">Could not load registry.json — try the <a href="registry.json">raw registry</a>.</p>';
+    return;
+  }
+  const esc = (s) => s.replace(/[&<>"]/g, (c) =>
+    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+  const card = (p) => {
+    const deps = Object.entries(p.dependencies || {})
+      .map(([n, r]) => `${esc(n)} ${esc(r)}`).join(", ");
+    return `<div class="pkg" data-hay="${esc([p.name, p.summary, ...(p.keywords || [])].join(" ").toLowerCase())}">
+      <div class="pkg-head">
+        <a class="pkg-name" href="${esc(p.index)}">${esc(p.name)}</a>
+        <span class="pkg-version">v${esc(p.version)}</span>
+        <span class="pkg-circuits">${p.circuits} circuit${p.circuits === 1 ? "" : "s"}</span>
+      </div>
+      <p class="pkg-summary">${esc(p.summary)}</p>
+      <p class="pkg-meta">
+        <code>shdl add ${esc(p.name)}</code>
+        ${deps ? " &middot; needs " + deps : ""}
+        &middot; <a href="${esc(p.archive)}">archive</a>
+      </p>
+    </div>`;
+  };
+  box.innerHTML = packages.map(card).join("");
+  const cards = [...box.querySelectorAll(".pkg")];
+  document.getElementById("filter").addEventListener("input", (ev) => {
+    const q = ev.target.value.trim().toLowerCase();
+    for (const c of cards)
+      c.style.display = !q || c.dataset.hay.includes(q) ? "" : "none";
+  });
+})();
+</script>
+</body>
+</html>
