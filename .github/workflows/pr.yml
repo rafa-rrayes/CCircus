@@ -44,11 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      # Verify against what consumers get. Pinned to the toolchain git sha
-      # until pyshdl 1.1.0 (which renames the import package to `SHDL`)
-      # ships; then flip to --with 'pyshdl==1.1.0'.
+      # Verify against what consumers get: the released toolchain from PyPI.
       - name: Build + test every package
         run: >
           uv run --no-project --python 3.14
-          --with 'pyshdl @ git+https://github.com/rafa-rrayes/SHDL@52d0863c118867f0d990ce3c2e9f71da5a22bfa4'
+          --with 'pyshdl>=1.1.0'
           python tools/cc.py all
